@@ -1,0 +1,250 @@
+{{template "base" .}}
+
+{{define "content"}}
+{{with .File}}
+<div class="page-header">
+    <div>
+        <h1>
+            {{if eq .LibraryType "movies"}}
+            <a href="/movies" class="text-decoration-none text-muted-sa"><i class="bi bi-camera-reels me-2"></i></a>
+            {{else}}
+            <a href="/shows" class="text-decoration-none text-muted-sa"><i class="bi bi-tv me-2"></i></a>
+            {{end}}
+            {{.Title}}{{if .Year}} <span class="text-muted-sa">({{.Year}})</span>{{end}}
+        </h1>
+        {{if and (hasValue .Season) (hasValue .Episode)}}
+        <span class="text-muted-sa">Season {{deref .Season}}, Episode {{deref .Episode}}</span>
+        {{end}}
+    </div>
+    {{if .NeedsAttention}}
+    <span class="badge badge-attention">Needs Attention</span>
+    {{end}}
+</div>
+
+<!-- File Info -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-file-earmark-play me-2"></i>File Information</div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <small class="text-muted-sa">Filename</small>
+                <div class="mb-2">{{.Filename}}</div>
+            </div>
+            <div class="col-md-3">
+                <small class="text-muted-sa">Size</small>
+                <div class="mb-2">{{formatSize .SizeBytes}}</div>
+            </div>
+            <div class="col-md-3">
+                <small class="text-muted-sa">Container</small>
+                <div class="mb-2">{{upper .Container}}</div>
+            </div>
+        </div>
+        <div>
+            <small class="text-muted-sa">Path</small>
+            <div class="text-muted-sa" style="font-size:0.85rem;word-break:break-all;">{{.Path}}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Audio Tracks -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-volume-up me-2"></i>Audio Tracks ({{len .AudioTracks}})</div>
+    {{if .AudioTracks}}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Codec</th>
+                    <th>Language</th>
+                    <th>Channels</th>
+                    <th>Title</th>
+                    <th>Flags</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{$audioCount := len .AudioTracks}}
+                {{range .AudioTracks}}
+                <tr>
+                    <td class="text-muted-sa">{{.StreamIndex}}</td>
+                    <td>{{codecName .Codec}}</td>
+                    <td>{{langName .Language}}</td>
+                    <td>{{channelLayout .Channels}}</td>
+                    <td class="text-muted-sa">{{if .Title}}{{.Title}}{{else}}&mdash;{{end}}</td>
+                    <td>
+                        {{if .DefaultTrack}}<span class="badge bg-secondary" style="font-size:0.7rem;">Default</span>{{end}}
+                        {{if .Forced}}<span class="badge bg-secondary" style="font-size:0.7rem;">Forced</span>{{end}}
+                    </td>
+                    <td>
+                        {{if gt $audioCount 1}}
+                        <button class="btn btn-outline-danger btn-sm" onclick="addRemoveOp('remove_audio', {{.StreamIndex}}, 'Remove audio: {{codecName .Codec}} ({{langName .Language}})')">
+                            <i class="bi bi-trash3"></i> Remove
+                        </button>
+                        {{else}}
+                        <span class="text-muted-sa" style="font-size:0.8rem;">Only track</span>
+                        {{end}}
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{else}}
+    <div class="card-body text-muted-sa">No audio tracks found.</div>
+    {{end}}
+</div>
+
+<!-- Subtitle Tracks -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-chat-text me-2"></i>Subtitle Tracks ({{len .SubtitleTracks}})</div>
+    {{if .SubtitleTracks}}
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Codec</th>
+                    <th>Language</th>
+                    <th>Title</th>
+                    <th>Flags</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .SubtitleTracks}}
+                <tr>
+                    <td class="text-muted-sa">{{.StreamIndex}}</td>
+                    <td>
+                        {{codecName .Codec}}
+                        {{if isImageSub .Codec}}
+                        <span class="badge bg-warning text-dark" style="font-size:0.65rem;" title="Image-based subtitle, cannot be extracted"><i class="bi bi-exclamation-triangle"></i> Image</span>
+                        {{end}}
+                    </td>
+                    <td>{{langName .Language}}</td>
+                    <td class="text-muted-sa">{{if .Title}}{{.Title}}{{else}}&mdash;{{end}}</td>
+                    <td>
+                        {{if .DefaultTrack}}<span class="badge bg-secondary" style="font-size:0.7rem;">Default</span>{{end}}
+                        {{if .Forced}}<span class="badge bg-secondary" style="font-size:0.7rem;">Forced</span>{{end}}
+                        {{if .SDH}}<span class="badge bg-secondary" style="font-size:0.7rem;">SDH</span>{{end}}
+                    </td>
+                    <td>
+                        {{if not (isImageSub .Codec)}}
+                        <button class="btn btn-outline-sa btn-sm me-1" onclick="addExtractOp({{.StreamIndex}}, 'Extract sub: {{codecName .Codec}} ({{langName .Language}})')">
+                            <i class="bi bi-box-arrow-up-right"></i> Extract
+                        </button>
+                        {{end}}
+                        <button class="btn btn-outline-danger btn-sm" onclick="addRemoveOp('remove_subtitle', {{.StreamIndex}}, 'Remove sub: {{codecName .Codec}} ({{langName .Language}})')">
+                            <i class="bi bi-trash3"></i> Remove
+                        </button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{else}}
+    <div class="card-body text-muted-sa">No subtitle tracks found.</div>
+    {{end}}
+</div>
+
+{{if $.HasPendingJob}}
+<div class="alert alert-warning">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    This file has a pending or running job. New operations cannot be added until it completes.
+    <a href="/jobs" class="alert-link">View Jobs</a>
+</div>
+{{end}}
+
+<!-- Pending Operations Panel -->
+<div class="ops-panel" id="opsPanel" style="display:none;">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Pending Operations</h6>
+        <div>
+            <button class="btn btn-outline-secondary btn-sm me-2" onclick="clearOps()">Clear All</button>
+            <button class="btn btn-sa btn-sm" onclick="applyOps()" {{if $.HasPendingJob}}disabled{{end}}>
+                <i class="bi bi-play-fill"></i> Apply
+            </button>
+        </div>
+    </div>
+    <div id="opsList"></div>
+</div>
+
+{{end}}
+{{end}}
+
+{{define "scripts"}}
+<script>
+let operations = [];
+const mediaFileId = {{.File.ID}};
+
+function addRemoveOp(type, streamIndex, label) {
+    // Check if already added
+    if (operations.find(op => op.type === type && op.stream_index === streamIndex)) return;
+    operations.push({ type: type, stream_index: streamIndex });
+    renderOps(label);
+}
+
+function addExtractOp(streamIndex, label) {
+    // Extract adds both extract and remove
+    if (operations.find(op => op.type === 'extract_subtitle' && op.stream_index === streamIndex)) return;
+    operations.push({ type: 'extract_subtitle', stream_index: streamIndex });
+    operations.push({ type: 'remove_subtitle', stream_index: streamIndex });
+    renderOps(label + ' + Remove');
+}
+
+function renderOps() {
+    const panel = document.getElementById('opsPanel');
+    const list = document.getElementById('opsList');
+    if (operations.length === 0) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = 'block';
+    list.innerHTML = '';
+    operations.forEach((op, i) => {
+        const div = document.createElement('div');
+        div.className = 'op-item';
+        let icon = op.type.includes('remove') ? 'trash3' : 'box-arrow-up-right';
+        let label = op.type.replace(/_/g, ' ') + ' (stream ' + op.stream_index + ')';
+        div.innerHTML = '<span><i class="bi bi-' + icon + ' me-2"></i>' + label + '</span>' +
+            '<button class="btn btn-outline-secondary btn-sm" style="padding:0.1rem 0.3rem;font-size:0.7rem;" onclick="removeOp(' + i + ')"><i class="bi bi-x"></i></button>';
+        list.appendChild(div);
+    });
+}
+
+function removeOp(index) {
+    operations.splice(index, 1);
+    renderOps();
+}
+
+function clearOps() {
+    operations = [];
+    renderOps();
+}
+
+function applyOps() {
+    if (operations.length === 0) return;
+    if (!confirm('Apply ' + operations.length + ' operation(s) to this file? This will modify the file using ffmpeg.')) return;
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/api/jobs';
+
+    const idInput = document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.name = 'media_file_id';
+    idInput.value = mediaFileId;
+    form.appendChild(idInput);
+
+    const opsInput = document.createElement('input');
+    opsInput.type = 'hidden';
+    opsInput.name = 'operations';
+    opsInput.value = JSON.stringify(operations);
+    form.appendChild(opsInput);
+
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{{end}}

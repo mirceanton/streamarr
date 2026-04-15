@@ -1,0 +1,153 @@
+{{template "base" .}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1><i class="bi bi-gear me-2"></i>Settings</h1>
+    <div>
+        <button class="btn btn-sa" hx-post="/api/scan/all" hx-swap="none"
+            {{if .ScanStatus.Running}}disabled{{end}}>
+            <i class="bi bi-arrow-clockwise"></i> Scan All Libraries
+        </button>
+    </div>
+</div>
+
+<!-- Scan Status -->
+{{if .ScanStatus.Running}}
+<div class="alert alert-info d-flex align-items-center" id="scanStatus"
+    hx-get="/api/scan/status" hx-trigger="every 2s" hx-swap="outerHTML">
+    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+    <div>
+        Scanning: <strong>{{.ScanStatus.Current}}</strong>
+        <span class="text-muted-sa ms-2">({{.ScanStatus.Done}}/{{.ScanStatus.Total}})</span>
+    </div>
+</div>
+{{end}}
+
+<!-- Library Roots -->
+<div class="card mb-4">
+    <div class="card-header">
+        <i class="bi bi-folder me-2"></i>Library Roots
+    </div>
+    <div class="card-body">
+        {{if .LibraryRoots}}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Path</th>
+                        <th>Type</th>
+                        <th>Last Scanned</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{range .LibraryRoots}}
+                    <tr>
+                        <td><strong>{{.Name}}</strong></td>
+                        <td class="text-muted-sa" style="font-size:0.9rem;">{{.Path}}</td>
+                        <td>
+                            {{if eq .Type "movies"}}
+                            <span class="badge bg-secondary"><i class="bi bi-camera-reels me-1"></i>Movies</span>
+                            {{else}}
+                            <span class="badge bg-secondary"><i class="bi bi-tv me-1"></i>Shows</span>
+                            {{end}}
+                        </td>
+                        <td class="text-muted-sa">
+                            {{if .LastScannedAt}}
+                            {{.LastScannedAt.Format "2006-01-02 15:04"}}
+                            {{else}}
+                            Never
+                            {{end}}
+                        </td>
+                        <td>
+                            <button class="btn btn-outline-sa btn-sm me-1" hx-post="/api/scan/{{.ID}}" hx-swap="none"
+                                {{if $.ScanStatus.Running}}disabled{{end}}>
+                                <i class="bi bi-arrow-clockwise"></i> Scan
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" hx-delete="/api/settings/libraries/{{.ID}}" hx-swap="none"
+                                hx-confirm="Delete library '{{.Name}}'? This will remove all scanned data for this library.">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+        {{else}}
+        <p class="text-muted-sa mb-0">No library roots configured. Add one below to get started.</p>
+        {{end}}
+    </div>
+</div>
+
+<!-- Add Library -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-plus-circle me-2"></i>Add Library Root</div>
+    <div class="card-body">
+        <form hx-post="/api/settings/libraries" hx-swap="none">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">Name</label>
+                    <input type="text" class="form-control" name="name" placeholder="e.g. Movies" required>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Path</label>
+                    <input type="text" class="form-control" name="path" placeholder="/media/movies" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Type</label>
+                    <select class="form-select" name="type" required>
+                        <option value="movies">Movies</option>
+                        <option value="shows">TV Shows</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-sa w-100">
+                        <i class="bi bi-plus"></i> Add
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Preferred Languages -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-translate me-2"></i>Preferred Languages</div>
+    <div class="card-body">
+        <form hx-post="/api/settings/languages" hx-swap="none">
+            <p class="text-muted-sa" style="font-size:0.85rem;">
+                Files with audio or subtitle tracks in languages other than these will be flagged as "Needs Attention".
+                Use ISO 639-2 three-letter codes, separated by commas.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <input type="text" class="form-control" name="languages"
+                        value="{{.PreferredLanguages}}" placeholder="eng, fra, deu">
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-sa">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{{end}}
+
+{{define "scan_status"}}
+{{if .Running}}
+<div class="alert alert-info d-flex align-items-center" id="scanStatus"
+    hx-get="/api/scan/status" hx-trigger="every 2s" hx-swap="outerHTML">
+    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+    <div>
+        Scanning: <strong>{{.Current}}</strong>
+        <span class="text-muted-sa ms-2">({{.Done}}/{{.Total}})</span>
+    </div>
+</div>
+{{else}}
+<div id="scanStatus" hx-get="/api/scan/status" hx-trigger="none"></div>
+{{end}}
+{{end}}
