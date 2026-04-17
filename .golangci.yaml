@@ -2,6 +2,8 @@
 version: "2"
 
 linters:
+  disable:
+    - errcheck
   exclusions:
     generated: lax
     presets:

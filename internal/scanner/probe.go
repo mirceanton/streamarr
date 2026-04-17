@@ -24,8 +24,8 @@ type ffprobeStream struct {
 		Title    string `json:"title"`
 	} `json:"tags"`
 	Disposition struct {
-		Default int `json:"default"`
-		Forced  int `json:"forced"`
+		Default         int `json:"default"`
+		Forced          int `json:"forced"`
 		HearingImpaired int `json:"hearing_impaired"`
 	} `json:"disposition"`
 }
@@ -83,28 +83,28 @@ func Probe(filepath string) ([]models.AudioTrack, []models.SubtitleTrack, error)
 // CodecDisplayName returns a human-friendly name for a codec.
 func CodecDisplayName(codec string) string {
 	names := map[string]string{
-		"aac":                "AAC",
-		"ac3":                "AC3",
-		"eac3":               "EAC3",
-		"dts":                "DTS",
-		"dca":                "DTS",
-		"truehd":             "TrueHD",
-		"flac":               "FLAC",
-		"mp3":                "MP3",
-		"mp2":                "MP2",
-		"vorbis":             "Vorbis",
-		"opus":               "Opus",
-		"pcm_s16le":          "PCM",
-		"pcm_s24le":          "PCM 24-bit",
-		"subrip":             "SubRip (SRT)",
-		"srt":                "SubRip (SRT)",
-		"ass":                "ASS",
-		"ssa":                "SSA",
-		"webvtt":             "WebVTT",
-		"mov_text":           "MOV Text",
-		"hdmv_pgs_subtitle":  "PGS",
-		"dvd_subtitle":       "VOBSUB",
-		"dvdsub":             "VOBSUB",
+		"aac":               "AAC",
+		"ac3":               "AC3",
+		"eac3":              "EAC3",
+		"dts":               "DTS",
+		"dca":               "DTS",
+		"truehd":            "TrueHD",
+		"flac":              "FLAC",
+		"mp3":               "MP3",
+		"mp2":               "MP2",
+		"vorbis":            "Vorbis",
+		"opus":              "Opus",
+		"pcm_s16le":         "PCM",
+		"pcm_s24le":         "PCM 24-bit",
+		"subrip":            "SubRip (SRT)",
+		"srt":               "SubRip (SRT)",
+		"ass":               "ASS",
+		"ssa":               "SSA",
+		"webvtt":            "WebVTT",
+		"mov_text":          "MOV Text",
+		"hdmv_pgs_subtitle": "PGS",
+		"dvd_subtitle":      "VOBSUB",
+		"dvdsub":            "VOBSUB",
 	}
 	if name, ok := names[strings.ToLower(codec)]; ok {
 		return name

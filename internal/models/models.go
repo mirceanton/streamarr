@@ -13,17 +13,17 @@ type LibraryRoot struct {
 
 // MediaFile represents a single media file on disk.
 type MediaFile struct {
-	ID            int64
-	LibraryRootID int64
-	Path          string
-	Filename      string
-	Title         string
-	Year          int
-	Season        *int // nil for movies
-	Episode       *int // nil for movies
-	SizeBytes     int64
-	Container     string
-	ScannedAt     time.Time
+	ID             int64
+	LibraryRootID  int64
+	Path           string
+	Filename       string
+	Title          string
+	Year           int
+	Season         *int // nil for movies
+	Episode        *int // nil for movies
+	SizeBytes      int64
+	Container      string
+	ScannedAt      time.Time
 	NeedsAttention bool
 
 	// Joined fields (not always populated)
@@ -77,16 +77,16 @@ type Job struct {
 
 // Operation represents a single action within a job.
 type Operation struct {
-	Type        string `json:"type"`         // remove_audio, remove_subtitle, extract_subtitle
+	Type        string `json:"type"` // remove_audio, remove_subtitle, extract_subtitle
 	StreamIndex int    `json:"stream_index"`
 	OutputPath  string `json:"output_path,omitempty"`
 }
 
 // Series groups episodes for the shows view.
 type Series struct {
-	Title    string
-	Path     string
-	Episodes []MediaFile
+	Title          string
+	Path           string
+	Episodes       []MediaFile
 	NeedsAttention bool
 }
 

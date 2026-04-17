@@ -1,4 +1,5 @@
 [tools]
+uv = "latest"
 go = "latest"
 goreleaser = "latest"
 golangci-lint = "latest"

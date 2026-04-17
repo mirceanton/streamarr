@@ -21,8 +21,13 @@ var funcMap = template.FuncMap{
 	"formatSize":    formatSize,
 	"upper":         strings.ToUpper,
 	"add":           func(a, b int) int { return a + b },
-	"deref":         func(p *int) int { if p != nil { return *p }; return 0 },
-	"hasValue":      func(p *int) bool { return p != nil },
+	"deref": func(p *int) int {
+		if p != nil {
+			return *p
+		}
+		return 0
+	},
+	"hasValue": func(p *int) bool { return p != nil },
 }
 
 func InitTemplates() error {
