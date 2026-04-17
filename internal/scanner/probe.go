@@ -139,6 +139,20 @@ func SubtitleExtension(codec string) string {
 	}
 }
 
+// externalSubtitleExts contains file extensions recognised as external subtitle sidecar files.
+var externalSubtitleExts = map[string]bool{
+	".srt": true,
+	".ass": true,
+	".ssa": true,
+	".vtt": true,
+	".sub": true,
+}
+
+// IsExternalSubtitleExt reports whether ext (e.g. ".srt") is a supported external subtitle extension.
+func IsExternalSubtitleExt(ext string) bool {
+	return externalSubtitleExts[strings.ToLower(ext)]
+}
+
 // ChannelLayout returns a human-readable channel layout description.
 func ChannelLayout(channels int) string {
 	switch channels {
