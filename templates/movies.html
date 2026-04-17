@@ -1,0 +1,59 @@
+{{template "base" .}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1><i class="bi bi-camera-reels me-2"></i>Movies</h1>
+</div>
+
+<div class="filter-bar">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="attentionFilter"
+            {{if .NeedsAttention}}checked{{end}}
+            onchange="window.location.href='/movies' + (this.checked ? '?attention=1' : '')">
+        <label class="form-check-label" for="attentionFilter">Needs Attention Only</label>
+    </div>
+</div>
+
+{{if .Files}}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Year</th>
+                    <th>File</th>
+                    <th>Size</th>
+                    <th>Streams</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Files}}
+                <tr class="clickable-row" onclick="window.location='/media/{{.ID}}'">
+                    <td><strong>{{.Title}}</strong></td>
+                    <td class="text-muted-sa">{{if .Year}}{{.Year}}{{else}}&mdash;{{end}}</td>
+                    <td class="text-muted-sa" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{.Filename}}">{{.Filename}}</td>
+                    <td class="text-muted-sa">{{formatSize .SizeBytes}}</td>
+                    <td class="stream-count">{{len .AudioTracks}} audio &middot; {{len .SubtitleTracks}} subs</td>
+                    <td>
+                        {{if .NeedsAttention}}
+                        <span class="badge badge-attention">Needs Attention</span>
+                        {{else}}
+                        <span class="badge bg-secondary" style="font-size:0.7rem;">OK</span>
+                        {{end}}
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{else}}
+<div class="empty-state">
+    <i class="bi bi-camera-reels"></i>
+    <h5>No Movies Found</h5>
+    <p>Add a movie library in <a href="/settings">Settings</a> and run a scan to get started.</p>
+</div>
+{{end}}
+{{end}}

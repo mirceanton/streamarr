@@ -1,0 +1,99 @@
+{{template "base" .}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1><i class="bi bi-list-task me-2"></i>Jobs</h1>
+</div>
+
+{{if .Jobs}}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>File</th>
+                    <th>Operations</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Jobs}}
+                <tr>
+                    <td class="text-muted-sa" style="white-space:nowrap;">{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
+                    <td>
+                        <a href="/media/{{.MediaFileID}}" class="text-decoration-none" style="color:var(--sa-accent);">{{.MediaFilename}}</a>
+                    </td>
+                    <td class="text-muted-sa" style="font-size:0.85rem;">
+                        {{.Operations}}
+                    </td>
+                    <td>
+                        {{template "job_badge" .}}
+                    </td>
+                    <td>
+                        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="collapse" data-bs-target="#job-{{.ID}}">
+                            <i class="bi bi-chevron-down"></i>
+                        </button>
+                    </td>
+                </tr>
+                <tr class="collapse" id="job-{{.ID}}">
+                    <td colspan="5" style="background-color:var(--sa-bg-tertiary);">
+                        {{if .FfmpegCommand}}
+                        <div class="mb-2">
+                            <small class="text-muted-sa">Command:</small>
+                            <pre style="background:var(--sa-bg-primary);padding:0.5rem;border-radius:4px;font-size:0.8rem;overflow-x:auto;margin:0.25rem 0;">{{.FfmpegCommand}}</pre>
+                        </div>
+                        {{end}}
+                        {{if .Error}}
+                        <div>
+                            <small class="text-muted-sa">Error:</small>
+                            <pre style="background:#2d1215;padding:0.5rem;border-radius:4px;font-size:0.8rem;color:var(--sa-danger);overflow-x:auto;margin:0.25rem 0;">{{.Error}}</pre>
+                        </div>
+                        {{end}}
+                        {{if and (not .FfmpegCommand) (not .Error)}}
+                        <span class="text-muted-sa">No details available yet.</span>
+                        {{end}}
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{else}}
+<div class="empty-state">
+    <i class="bi bi-list-task"></i>
+    <h5>No Jobs</h5>
+    <p>Jobs will appear here when you apply operations to media files.</p>
+</div>
+{{end}}
+{{end}}
+
+{{define "job_badge"}}
+<span id="job-status-{{.ID}}" {{if or (eq .Status "pending") (eq .Status "running")}}hx-get="/api/jobs/{{.ID}}/status" hx-trigger="every 3s" hx-swap="outerHTML"{{end}}>
+    {{if eq .Status "pending"}}
+    <span class="badge badge-status-pending">Pending</span>
+    {{else if eq .Status "running"}}
+    <span class="badge badge-status-running"><span class="spinner-border spinner-border-sm me-1" style="width:0.6rem;height:0.6rem;"></span>Running</span>
+    {{else if eq .Status "done"}}
+    <span class="badge badge-status-done">Done</span>
+    {{else if eq .Status "failed"}}
+    <span class="badge badge-status-failed">Failed</span>
+    {{end}}
+</span>
+{{end}}
+
+{{define "job_status"}}
+<span id="job-status-{{.ID}}" {{if or (eq .Status "pending") (eq .Status "running")}}hx-get="/api/jobs/{{.ID}}/status" hx-trigger="every 3s" hx-swap="outerHTML"{{end}}>
+    {{if eq .Status "pending"}}
+    <span class="badge badge-status-pending">Pending</span>
+    {{else if eq .Status "running"}}
+    <span class="badge badge-status-running"><span class="spinner-border spinner-border-sm me-1" style="width:0.6rem;height:0.6rem;"></span>Running</span>
+    {{else if eq .Status "done"}}
+    <span class="badge badge-status-done">Done</span>
+    {{else if eq .Status "failed"}}
+    <span class="badge badge-status-failed">Failed</span>
+    {{end}}
+</span>
+{{end}}

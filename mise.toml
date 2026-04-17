@@ -1,0 +1,8 @@
+[tools]
+uv = "latest"
+go = "latest"
+goreleaser = "latest"
+golangci-lint = "latest"
+actionlint = "latest"
+yamllint = "latest"
+svu = "latest"

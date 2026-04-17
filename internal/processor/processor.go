@@ -1,0 +1,237 @@
+package processor
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/mirceanton/streamarr/internal/db"
+	"github.com/mirceanton/streamarr/internal/models"
+	"github.com/mirceanton/streamarr/internal/scanner"
+)
+
+var (
+	processorOnce sync.Once
+	jobCh         = make(chan int64, 100)
+)
+
+// Start begins the background job processor.
+func Start() {
+	processorOnce.Do(func() {
+		go processLoop()
+	})
+}
+
+// Enqueue adds a job ID to the processing queue.
+func Enqueue(jobID int64) {
+	jobCh <- jobID
+}
+
+func processLoop() {
+	for jobID := range jobCh {
+		processJob(jobID)
+	}
+}
+
+func processJob(jobID int64) {
+	job, err := db.GetJob(jobID)
+	if err != nil {
+		log.Printf("get job %d: %v", jobID, err)
+		return
+	}
+
+	if job.Status != "pending" {
+		return
+	}
+
+	db.UpdateJobStatus(jobID, "running")
+
+	var ops []models.Operation
+	if err := json.Unmarshal([]byte(job.Operations), &ops); err != nil {
+		failJob(jobID, fmt.Sprintf("parse operations: %v", err))
+		return
+	}
+
+	mf, err := db.GetMediaFile(job.MediaFileID)
+	if err != nil {
+		failJob(jobID, fmt.Sprintf("get media file: %v", err))
+		return
+	}
+
+	// Execute extract operations first (before removing anything)
+	for _, op := range ops {
+		if op.Type == "extract_subtitle" {
+			if err := extractSubtitle(mf.Path, op); err != nil {
+				failJob(jobID, fmt.Sprintf("extract subtitle stream %d: %v", op.StreamIndex, err))
+				return
+			}
+		}
+	}
+
+	// Collect streams to remove
+	var removeIndices []int
+	for _, op := range ops {
+		if op.Type == "remove_audio" || op.Type == "remove_subtitle" {
+			removeIndices = append(removeIndices, op.StreamIndex)
+		}
+	}
+
+	if len(removeIndices) > 0 {
+		cmd, err := buildRemoveCommand(mf.Path, removeIndices)
+		if err != nil {
+			failJob(jobID, fmt.Sprintf("build ffmpeg command: %v", err))
+			return
+		}
+
+		db.UpdateJobCommand(jobID, strings.Join(cmd.Args, " "))
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			failJob(jobID, fmt.Sprintf("ffmpeg failed: %v\nOutput: %s", err, string(output)))
+			// Clean up temp file
+			tmpPath := mf.Path + ".tmp" + filepath.Ext(mf.Path)
+			os.Remove(tmpPath)
+			return
+		}
+
+		// Atomic rename
+		tmpPath := mf.Path + ".tmp" + filepath.Ext(mf.Path)
+		if err := os.Rename(tmpPath, mf.Path); err != nil {
+			failJob(jobID, fmt.Sprintf("rename temp file: %v", err))
+			return
+		}
+	}
+
+	// Re-probe and update DB
+	audioTracks, subtitleTracks, err := scanner.Probe(mf.Path)
+	if err != nil {
+		log.Printf("re-probe after job %d: %v", jobID, err)
+	} else {
+		db.DeleteTracksForFile(mf.ID)
+		preferredLangs, _ := db.GetPreferredLanguages()
+		needsAttention := false
+
+		preferred := make(map[string]bool)
+		for _, l := range preferredLangs {
+			preferred[strings.ToLower(l)] = true
+		}
+		preferred["und"] = true
+		preferred[""] = true
+
+		for _, t := range audioTracks {
+			t.MediaFileID = mf.ID
+			db.InsertAudioTrack(&t)
+			lang := strings.ToLower(t.Language)
+			if !preferred[lang] {
+				needsAttention = true
+			}
+		}
+
+		subPreferred := make(map[string]bool)
+		for _, l := range preferredLangs {
+			subPreferred[strings.ToLower(l)] = true
+		}
+		subPreferred[""] = true
+
+		for _, t := range subtitleTracks {
+			t.MediaFileID = mf.ID
+			db.InsertSubtitleTrack(&t)
+			lang := strings.ToLower(t.Language)
+			if !subPreferred[lang] && lang != "und" {
+				needsAttention = true
+			}
+		}
+
+		// Update file info
+		info, _ := os.Stat(mf.Path)
+		if info != nil {
+			db.DB.Exec(`UPDATE media_files SET size_bytes = ?, scanned_at = ?, needs_attention = ? WHERE id = ?`,
+				info.Size(), time.Now(), needsAttention, mf.ID)
+		}
+	}
+
+	db.UpdateJobStatus(jobID, "done")
+}
+
+func extractSubtitle(inputPath string, op models.Operation) error {
+	outputPath := op.OutputPath
+	if outputPath == "" {
+		return fmt.Errorf("no output path specified for extraction")
+	}
+
+	cmd := exec.Command("ffmpeg",
+		"-y",
+		"-i", inputPath,
+		"-map", fmt.Sprintf("0:%d", op.StreamIndex),
+		"-c", "copy",
+		outputPath,
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%v: %s", err, string(output))
+	}
+	return nil
+}
+
+func buildRemoveCommand(inputPath string, removeIndices []int) (*exec.Cmd, error) {
+	// Get all stream indices via ffprobe
+	audioTracks, subtitleTracks, err := scanner.Probe(inputPath)
+	if err != nil {
+		return nil, err
+	}
+
+	removeSet := make(map[int]bool)
+	for _, idx := range removeIndices {
+		removeSet[idx] = true
+	}
+
+	// Build -map arguments: include all streams EXCEPT the ones being removed
+	// We need to discover all stream indices. We'll use -map 0 and then -map -0:idx for removals.
+	// Actually, it's cleaner to explicitly map what we want.
+	// But we don't know video stream indices from our data. Let's use the negative mapping approach.
+
+	args := []string{
+		"-y",
+		"-i", inputPath,
+		"-map", "0",
+	}
+
+	// Add negative mappings for streams to remove
+	for _, idx := range removeIndices {
+		args = append(args, "-map", fmt.Sprintf("-0:%d", idx))
+	}
+
+	args = append(args, "-c", "copy")
+
+	tmpPath := inputPath + ".tmp" + filepath.Ext(inputPath)
+	args = append(args, tmpPath)
+
+	// Validate: ensure we're not removing all audio tracks
+	remainingAudio := 0
+	for _, t := range audioTracks {
+		if !removeSet[t.StreamIndex] {
+			remainingAudio++
+		}
+	}
+	if remainingAudio == 0 && len(audioTracks) > 0 {
+		return nil, fmt.Errorf("cannot remove all audio tracks")
+	}
+
+	_ = subtitleTracks // subtitles can all be removed
+
+	cmd := exec.Command("ffmpeg", args...)
+	return cmd, nil
+}
+
+func failJob(jobID int64, errMsg string) {
+	log.Printf("job %d failed: %s", jobID, errMsg)
+	db.UpdateJobError(jobID, errMsg)
+	db.UpdateJobStatus(jobID, "failed")
+}

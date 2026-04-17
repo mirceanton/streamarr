@@ -1,0 +1,399 @@
+package db
+
+import (
+	"database/sql"
+	"encoding/json"
+	"time"
+
+	"github.com/mirceanton/streamarr/internal/models"
+)
+
+// --- Library Roots ---
+
+func GetLibraryRoots() ([]models.LibraryRoot, error) {
+	rows, err := DB.Query(`SELECT id, name, path, type, last_scanned_at FROM library_roots ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var roots []models.LibraryRoot
+	for rows.Next() {
+		var r models.LibraryRoot
+		if err := rows.Scan(&r.ID, &r.Name, &r.Path, &r.Type, &r.LastScannedAt); err != nil {
+			return nil, err
+		}
+		roots = append(roots, r)
+	}
+	return roots, rows.Err()
+}
+
+func GetLibraryRoot(id int64) (*models.LibraryRoot, error) {
+	var r models.LibraryRoot
+	err := DB.QueryRow(`SELECT id, name, path, type, last_scanned_at FROM library_roots WHERE id = ?`, id).
+		Scan(&r.ID, &r.Name, &r.Path, &r.Type, &r.LastScannedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
+}
+
+func CreateLibraryRoot(name, path, typ string) (int64, error) {
+	res, err := DB.Exec(`INSERT INTO library_roots (name, path, type) VALUES (?, ?, ?)`, name, path, typ)
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func DeleteLibraryRoot(id int64) error {
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// Delete tracks for all media files in this library
+	_, err = tx.Exec(`DELETE FROM audio_tracks WHERE media_file_id IN (SELECT id FROM media_files WHERE library_root_id = ?)`, id)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM subtitle_tracks WHERE media_file_id IN (SELECT id FROM media_files WHERE library_root_id = ?)`, id)
+	if err != nil {
+		return err
+	}
+	// Delete jobs for files in this library
+	_, err = tx.Exec(`DELETE FROM jobs WHERE media_file_id IN (SELECT id FROM media_files WHERE library_root_id = ?)`, id)
+	if err != nil {
+		return err
+	}
+	// Delete media files
+	_, err = tx.Exec(`DELETE FROM media_files WHERE library_root_id = ?`, id)
+	if err != nil {
+		return err
+	}
+	// Delete the library root
+	_, err = tx.Exec(`DELETE FROM library_roots WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func UpdateLibraryScanTime(id int64) error {
+	_, err := DB.Exec(`UPDATE library_roots SET last_scanned_at = ? WHERE id = ?`, time.Now(), id)
+	return err
+}
+
+// --- Media Files ---
+
+func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]models.MediaFile, error) {
+	query := `SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention,
+		(SELECT COUNT(*) FROM audio_tracks WHERE media_file_id = mf.id) as audio_count,
+		(SELECT COUNT(*) FROM subtitle_tracks WHERE media_file_id = mf.id) as sub_count,
+		lr.type
+		FROM media_files mf
+		JOIN library_roots lr ON mf.library_root_id = lr.id
+		WHERE lr.type = ?`
+	if needsAttentionOnly {
+		query += ` AND mf.needs_attention = 1`
+	}
+	query += ` ORDER BY mf.title, mf.season, mf.episode`
+
+	rows, err := DB.Query(query, libType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []models.MediaFile
+	for rows.Next() {
+		var f models.MediaFile
+		var audioCount, subCount int
+		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention,
+			&audioCount, &subCount, &f.LibraryType); err != nil {
+			return nil, err
+		}
+		// Store counts as fake tracks for template use
+		f.AudioTracks = make([]models.AudioTrack, audioCount)
+		f.SubtitleTracks = make([]models.SubtitleTrack, subCount)
+		files = append(files, f)
+	}
+	return files, rows.Err()
+}
+
+func GetMediaFile(id int64) (*models.MediaFile, error) {
+	var f models.MediaFile
+	err := DB.QueryRow(`SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, lr.type
+		FROM media_files mf JOIN library_roots lr ON mf.library_root_id = lr.id
+		WHERE mf.id = ?`, id).
+		Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.LibraryType)
+	if err != nil {
+		return nil, err
+	}
+
+	f.AudioTracks, err = GetAudioTracks(id)
+	if err != nil {
+		return nil, err
+	}
+	f.SubtitleTracks, err = GetSubtitleTracks(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &f, nil
+}
+
+func GetMediaFileByPath(path string) (*models.MediaFile, error) {
+	var f models.MediaFile
+	err := DB.QueryRow(`SELECT id, library_root_id, path, filename, title, year,
+		season, episode, size_bytes, container, scanned_at, needs_attention
+		FROM media_files WHERE path = ?`, path).
+		Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention)
+	if err != nil {
+		return nil, err
+	}
+	return &f, nil
+}
+
+func UpsertMediaFile(f *models.MediaFile) (int64, error) {
+	res, err := DB.Exec(`INSERT INTO media_files (library_root_id, path, filename, title, year, season, episode, size_bytes, container, scanned_at, needs_attention)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(path) DO UPDATE SET
+			filename = excluded.filename,
+			title = excluded.title,
+			year = excluded.year,
+			season = excluded.season,
+			episode = excluded.episode,
+			size_bytes = excluded.size_bytes,
+			container = excluded.container,
+			scanned_at = excluded.scanned_at,
+			needs_attention = excluded.needs_attention`,
+		f.LibraryRootID, f.Path, f.Filename, f.Title, f.Year, f.Season, f.Episode,
+		f.SizeBytes, f.Container, f.ScannedAt, f.NeedsAttention)
+	if err != nil {
+		return 0, err
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if id == 0 {
+		// Was an update, get the existing ID
+		existing, err := GetMediaFileByPath(f.Path)
+		if err != nil {
+			return 0, err
+		}
+		id = existing.ID
+	}
+	return id, nil
+}
+
+func DeleteTracksForFile(fileID int64) error {
+	_, err := DB.Exec(`DELETE FROM audio_tracks WHERE media_file_id = ?`, fileID)
+	if err != nil {
+		return err
+	}
+	_, err = DB.Exec(`DELETE FROM subtitle_tracks WHERE media_file_id = ?`, fileID)
+	return err
+}
+
+// --- Audio Tracks ---
+
+func GetAudioTracks(mediaFileID int64) ([]models.AudioTrack, error) {
+	rows, err := DB.Query(`SELECT id, media_file_id, stream_index, codec, language, title, channels, default_track, forced
+		FROM audio_tracks WHERE media_file_id = ? ORDER BY stream_index`, mediaFileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tracks []models.AudioTrack
+	for rows.Next() {
+		var t models.AudioTrack
+		if err := rows.Scan(&t.ID, &t.MediaFileID, &t.StreamIndex, &t.Codec, &t.Language, &t.Title, &t.Channels, &t.DefaultTrack, &t.Forced); err != nil {
+			return nil, err
+		}
+		tracks = append(tracks, t)
+	}
+	return tracks, rows.Err()
+}
+
+func InsertAudioTrack(t *models.AudioTrack) error {
+	_, err := DB.Exec(`INSERT INTO audio_tracks (media_file_id, stream_index, codec, language, title, channels, default_track, forced)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.MediaFileID, t.StreamIndex, t.Codec, t.Language, t.Title, t.Channels, t.DefaultTrack, t.Forced)
+	return err
+}
+
+// --- Subtitle Tracks ---
+
+func GetSubtitleTracks(mediaFileID int64) ([]models.SubtitleTrack, error) {
+	rows, err := DB.Query(`SELECT id, media_file_id, stream_index, codec, language, title, default_track, forced, sdh
+		FROM subtitle_tracks WHERE media_file_id = ? ORDER BY stream_index`, mediaFileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tracks []models.SubtitleTrack
+	for rows.Next() {
+		var t models.SubtitleTrack
+		if err := rows.Scan(&t.ID, &t.MediaFileID, &t.StreamIndex, &t.Codec, &t.Language, &t.Title, &t.DefaultTrack, &t.Forced, &t.SDH); err != nil {
+			return nil, err
+		}
+		tracks = append(tracks, t)
+	}
+	return tracks, rows.Err()
+}
+
+func InsertSubtitleTrack(t *models.SubtitleTrack) error {
+	_, err := DB.Exec(`INSERT INTO subtitle_tracks (media_file_id, stream_index, codec, language, title, default_track, forced, sdh)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.MediaFileID, t.StreamIndex, t.Codec, t.Language, t.Title, t.DefaultTrack, t.Forced, t.SDH)
+	return err
+}
+
+// --- Jobs ---
+
+func CreateJob(mediaFileID int64, operations []models.Operation) (int64, error) {
+	opsJSON, err := json.Marshal(operations)
+	if err != nil {
+		return 0, err
+	}
+
+	res, err := DB.Exec(`INSERT INTO jobs (media_file_id, status, operations, created_at) VALUES (?, 'pending', ?, ?)`,
+		mediaFileID, string(opsJSON), time.Now())
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
+func GetJob(id int64) (*models.Job, error) {
+	var j models.Job
+	err := DB.QueryRow(`SELECT j.id, j.media_file_id, j.status, j.operations, COALESCE(j.ffmpeg_command,''), COALESCE(j.error,''),
+		j.created_at, j.started_at, j.finished_at, mf.filename, mf.path
+		FROM jobs j JOIN media_files mf ON j.media_file_id = mf.id
+		WHERE j.id = ?`, id).
+		Scan(&j.ID, &j.MediaFileID, &j.Status, &j.Operations, &j.FfmpegCommand, &j.Error,
+			&j.CreatedAt, &j.StartedAt, &j.FinishedAt, &j.MediaFilename, &j.MediaPath)
+	if err != nil {
+		return nil, err
+	}
+	return &j, nil
+}
+
+func GetJobs() ([]models.Job, error) {
+	rows, err := DB.Query(`SELECT j.id, j.media_file_id, j.status, j.operations, COALESCE(j.ffmpeg_command,''), COALESCE(j.error,''),
+		j.created_at, j.started_at, j.finished_at, mf.filename, mf.path
+		FROM jobs j JOIN media_files mf ON j.media_file_id = mf.id
+		ORDER BY j.created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var jobs []models.Job
+	for rows.Next() {
+		var j models.Job
+		if err := rows.Scan(&j.ID, &j.MediaFileID, &j.Status, &j.Operations, &j.FfmpegCommand, &j.Error,
+			&j.CreatedAt, &j.StartedAt, &j.FinishedAt, &j.MediaFilename, &j.MediaPath); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, j)
+	}
+	return jobs, rows.Err()
+}
+
+func UpdateJobStatus(id int64, status string) error {
+	now := time.Now()
+	switch status {
+	case "running":
+		_, err := DB.Exec(`UPDATE jobs SET status = ?, started_at = ? WHERE id = ?`, status, now, id)
+		return err
+	case "done", "failed":
+		_, err := DB.Exec(`UPDATE jobs SET status = ?, finished_at = ? WHERE id = ?`, status, now, id)
+		return err
+	default:
+		_, err := DB.Exec(`UPDATE jobs SET status = ? WHERE id = ?`, status, id)
+		return err
+	}
+}
+
+func UpdateJobCommand(id int64, cmd string) error {
+	_, err := DB.Exec(`UPDATE jobs SET ffmpeg_command = ? WHERE id = ?`, cmd, id)
+	return err
+}
+
+func UpdateJobError(id int64, errMsg string) error {
+	_, err := DB.Exec(`UPDATE jobs SET error = ? WHERE id = ?`, errMsg, id)
+	return err
+}
+
+func HasPendingJob(mediaFileID int64) (bool, error) {
+	var count int
+	err := DB.QueryRow(`SELECT COUNT(*) FROM jobs WHERE media_file_id = ? AND status IN ('pending', 'running')`, mediaFileID).Scan(&count)
+	return count > 0, err
+}
+
+func GetPendingJobs() ([]models.Job, error) {
+	rows, err := DB.Query(`SELECT j.id, j.media_file_id, j.status, j.operations, COALESCE(j.ffmpeg_command,''), COALESCE(j.error,''),
+		j.created_at, j.started_at, j.finished_at, mf.filename, mf.path
+		FROM jobs j JOIN media_files mf ON j.media_file_id = mf.id
+		WHERE j.status = 'pending'
+		ORDER BY j.created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var jobs []models.Job
+	for rows.Next() {
+		var j models.Job
+		if err := rows.Scan(&j.ID, &j.MediaFileID, &j.Status, &j.Operations, &j.FfmpegCommand, &j.Error,
+			&j.CreatedAt, &j.StartedAt, &j.FinishedAt, &j.MediaFilename, &j.MediaPath); err != nil {
+			return nil, err
+		}
+		jobs = append(jobs, j)
+	}
+	return jobs, rows.Err()
+}
+
+// --- Settings ---
+
+func GetSetting(key string) (string, error) {
+	var value string
+	err := DB.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return value, err
+}
+
+func SetSetting(key, value string) error {
+	_, err := DB.Exec(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`, key, value)
+	return err
+}
+
+func GetPreferredLanguages() ([]string, error) {
+	val, err := GetSetting("preferred_languages")
+	if err != nil {
+		return []string{"eng"}, err
+	}
+	if val == "" {
+		return []string{"eng"}, nil
+	}
+	var langs []string
+	if err := json.Unmarshal([]byte(val), &langs); err != nil {
+		return []string{"eng"}, nil
+	}
+	return langs, nil
+}
