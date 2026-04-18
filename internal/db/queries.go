@@ -146,6 +146,37 @@ func DeleteMediaFileByID(id int64) error {
 	return tx.Commit()
 }
 
+func DeleteSeriesByTitle(title string, libraryRootID int64) error {
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`DELETE FROM audio_tracks WHERE media_file_id IN (SELECT id FROM media_files WHERE title = ? AND library_root_id = ?)`, title, libraryRootID)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM subtitle_tracks WHERE media_file_id IN (SELECT id FROM media_files WHERE title = ? AND library_root_id = ?)`, title, libraryRootID)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM external_subtitle_files WHERE media_file_id IN (SELECT id FROM media_files WHERE title = ? AND library_root_id = ?)`, title, libraryRootID)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM jobs WHERE media_file_id IN (SELECT id FROM media_files WHERE title = ? AND library_root_id = ?)`, title, libraryRootID)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM media_files WHERE title = ? AND library_root_id = ?`, title, libraryRootID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func UpdateLibraryScanTime(id int64) error {
 	_, err := DB.Exec(`UPDATE library_roots SET last_scanned_at = ? WHERE id = ?`, time.Now(), id)
 	return err

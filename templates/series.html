@@ -15,6 +15,14 @@
             onclick="rescanSeries('{{.SeriesTitle}}', {{.LibraryRootID}}, this)">
             <i class="bi bi-arrow-clockwise"></i>
         </button>
+        <form hx-post="/api/series/delete" hx-swap="none"
+            hx-confirm="Remove '{{.SeriesTitle}}' from the database? The files will NOT be deleted from disk.">
+            <input type="hidden" name="title" value="{{.SeriesTitle}}">
+            <input type="hidden" name="library_root_id" value="{{.LibraryRootID}}">
+            <button type="submit" class="btn btn-outline-danger btn-sm" title="Remove from database only (files stay on disk)">
+                <i class="bi bi-trash3"></i>
+            </button>
+        </form>
         <button class="btn btn-outline-primary btn-sm" title="Bulk edit tracks for all episodes"
             onclick="openBulkEdit('{{.SeriesTitle}}', {{.LibraryRootID}})">
             <i class="bi bi-collection-play me-1"></i>Bulk Edit

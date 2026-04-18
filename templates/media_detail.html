@@ -24,6 +24,11 @@
             title="Re-probe file streams and update database">
             <i class="bi bi-arrow-clockwise"></i> Rescan
         </button>
+        <button class="btn btn-outline-danger btn-sm" hx-delete="/api/media/{{.ID}}" hx-swap="none"
+            hx-confirm="Remove '{{.Title}}' from the database? The file will NOT be deleted from disk."
+            title="Remove from database only (file stays on disk)">
+            <i class="bi bi-trash3"></i> Delete from DB
+        </button>
     </div>
 </div>
 
