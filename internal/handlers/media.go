@@ -52,12 +52,14 @@ func MediaDetailHandler(w http.ResponseWriter, r *http.Request) {
 
 	hasPendingJob, _ := db.HasPendingJob(id)
 	globalLangs, _ := db.GetPreferredLanguages()
+	globalSubtitleFormat, _ := db.GetPreferredSubtitleFormat()
 
 	data := map[string]interface{}{
-		"Page":            "media",
-		"File":            mf,
-		"HasPendingJob":   hasPendingJob,
-		"GlobalLanguages": strings.Join(globalLangs, ", "),
+		"Page":                 "media",
+		"File":                 mf,
+		"HasPendingJob":        hasPendingJob,
+		"GlobalLanguages":      strings.Join(globalLangs, ", "),
+		"GlobalSubtitleFormat": globalSubtitleFormat,
 	}
 	render(w, "media_detail.html", data)
 }

@@ -167,6 +167,10 @@ func processJob(jobID int64) {
 		if len(mf.LanguageOverride) > 0 {
 			effectiveLangs = mf.LanguageOverride
 		}
+		effectiveSubtitleFormat, _ := db.GetPreferredSubtitleFormat()
+		if mf.SubtitleFormatOverride != "" {
+			effectiveSubtitleFormat = mf.SubtitleFormatOverride
+		}
 
 		for _, t := range audioTracks {
 			t.MediaFileID = mf.ID
@@ -178,7 +182,7 @@ func processJob(jobID int64) {
 			db.InsertSubtitleTrack(&t)
 		}
 
-		needsAttention, attentionReasons := scanner.ComputeAttentionReasons(audioTracks, subtitleTracks, effectiveLangs)
+		needsAttention, attentionReasons := scanner.ComputeAttentionReasons(audioTracks, subtitleTracks, effectiveLangs, effectiveSubtitleFormat)
 
 		// Update file info
 		info, _ := os.Stat(mf.Path)
