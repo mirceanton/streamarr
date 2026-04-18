@@ -179,7 +179,8 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM subtitle_tracks WHERE media_file_id = mf.id), '') as sub_langs,
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM external_subtitle_files WHERE media_file_id = mf.id), '') as ext_sub_langs,
 		lr.type,
-		COALESCE((SELECT status FROM jobs WHERE media_file_id = mf.id AND status IN ('pending', 'running') LIMIT 1), '') as active_job_status
+		COALESCE((SELECT status FROM jobs WHERE media_file_id = mf.id AND status IN ('pending', 'running') LIMIT 1), '') as active_job_status,
+		COALESCE((SELECT preferred_subtitle_format FROM subtitle_format_overrides WHERE library_root_id = mf.library_root_id AND item_type = 'movie' AND item_key = mf.path), '') as subtitle_format_override
 		FROM media_files mf
 		JOIN library_roots lr ON mf.library_root_id = lr.id
 		WHERE lr.type = ?`
@@ -200,7 +201,7 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 		var audioLangs, subLangs, extSubLangs string
 		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
 			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
-			&audioLangs, &subLangs, &extSubLangs, &f.LibraryType, &f.ActiveJobStatus); err != nil {
+			&audioLangs, &subLangs, &extSubLangs, &f.LibraryType, &f.ActiveJobStatus, &f.SubtitleFormatOverride); err != nil {
 			return nil, err
 		}
 		if audioLangs != "" {
@@ -230,7 +231,8 @@ func GetSeriesEpisodesForTable(title string, needsAttentionOnly bool) ([]models.
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM subtitle_tracks WHERE media_file_id = mf.id), '') as sub_langs,
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM external_subtitle_files WHERE media_file_id = mf.id), '') as ext_sub_langs,
 		lr.type,
-		COALESCE((SELECT status FROM jobs WHERE media_file_id = mf.id AND status IN ('pending', 'running') LIMIT 1), '') as active_job_status
+		COALESCE((SELECT status FROM jobs WHERE media_file_id = mf.id AND status IN ('pending', 'running') LIMIT 1), '') as active_job_status,
+		COALESCE((SELECT preferred_subtitle_format FROM subtitle_format_overrides WHERE library_root_id = mf.library_root_id AND item_type = 'series' AND item_key = mf.title), '') as subtitle_format_override
 		FROM media_files mf
 		JOIN library_roots lr ON mf.library_root_id = lr.id
 		WHERE lr.type = 'shows' AND mf.title = ?`
@@ -251,7 +253,7 @@ func GetSeriesEpisodesForTable(title string, needsAttentionOnly bool) ([]models.
 		var audioLangs, subLangs, extSubLangs string
 		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
 			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
-			&audioLangs, &subLangs, &extSubLangs, &f.LibraryType, &f.ActiveJobStatus); err != nil {
+			&audioLangs, &subLangs, &extSubLangs, &f.LibraryType, &f.ActiveJobStatus, &f.SubtitleFormatOverride); err != nil {
 			return nil, err
 		}
 		if audioLangs != "" {

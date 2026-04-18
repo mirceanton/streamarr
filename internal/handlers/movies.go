@@ -15,10 +15,13 @@ func MoviesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	globalSubtitleFormat, _ := db.GetPreferredSubtitleFormat()
+
 	data := map[string]interface{}{
-		"Page":           "movies",
-		"Files":          files,
-		"NeedsAttention": needsAttention,
+		"Page":                 "movies",
+		"Files":                files,
+		"NeedsAttention":       needsAttention,
+		"GlobalSubtitleFormat": globalSubtitleFormat,
 	}
 	render(w, "movies.html", data)
 }

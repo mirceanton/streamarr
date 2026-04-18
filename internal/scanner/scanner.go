@@ -244,7 +244,10 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 		return fmt.Errorf("probe: %w", err)
 	}
 
-	needsAttention, attentionReasons := ComputeAttentionReasons(audioTracks, subtitleTracks, effectiveLangs, effectiveSubtitleFormat)
+	// Detect external subtitle files now (before upsert) so we can include them in attention computation.
+	extSubs := detectExternalSubtitleFiles(path, filename)
+
+	needsAttention, attentionReasons := ComputeAttentionReasons(audioTracks, subtitleTracks, extSubs, effectiveLangs, effectiveSubtitleFormat)
 
 	mf := &models.MediaFile{
 		LibraryRootID:    root.ID,
@@ -285,9 +288,15 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 		}
 	}
 
-	mf.ID = fileID
-	if err := ScanExternalSubtitles(mf); err != nil {
-		log.Printf("scan external subtitles for %s: %v", path, err)
+	// Store external subtitle files (use already-detected list to avoid a second FS scan).
+	if err := db.DeleteExternalSubtitleFilesForFile(fileID); err != nil {
+		log.Printf("delete old external subtitles for %s: %v", path, err)
+	}
+	for i := range extSubs {
+		extSubs[i].MediaFileID = fileID
+		if err := db.InsertExternalSubtitleFile(&extSubs[i]); err != nil {
+			log.Printf("insert external subtitle %s: %v", extSubs[i].Filename, err)
+		}
 	}
 
 	return nil
@@ -342,7 +351,7 @@ func parseSeasonEpisode(filename string) (int, int) {
 }
 
 // ComputeAttentionReasons returns whether a file needs attention and a human-readable description of why.
-func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTrack, preferredLangs []string, preferredSubtitleFormat string) (bool, string) {
+func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTrack, extSubs []models.ExternalSubtitleFile, preferredLangs []string, preferredSubtitleFormat string) (bool, string) {
 	preferred := make(map[string]bool)
 	for _, l := range preferredLangs {
 		preferred[strings.ToLower(l)] = true
@@ -378,6 +387,17 @@ func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTr
 		}
 	}
 
+	if preferredSubtitleFormat != "" {
+		for _, es := range extSubs {
+			lang := strings.ToLower(es.Language)
+			if subPreferred[lang] || lang == "und" || lang == "" {
+				if es.Format != strings.ToLower(preferredSubtitleFormat) {
+					subFormatBad = append(subFormatBad, fmt.Sprintf("%s (%s, got %s)", es.Filename, es.Language, es.Format))
+				}
+			}
+		}
+	}
+
 	if len(audioBad) == 0 && len(subBad) == 0 && len(subFormatBad) == 0 {
 		return false, ""
 	}
@@ -404,20 +424,18 @@ var subtitleFlagWords = map[string]bool{
 	"default": true,
 }
 
-// ScanExternalSubtitles detects subtitle sidecar files in the same directory as mf and stores them in the DB.
-func ScanExternalSubtitles(mf *models.MediaFile) error {
-	dir := filepath.Dir(mf.Path)
-	basename := strings.TrimSuffix(mf.Filename, filepath.Ext(mf.Filename))
+// detectExternalSubtitleFiles scans the filesystem for subtitle sidecar files alongside a media file.
+// It performs no database operations and requires no media file ID.
+func detectExternalSubtitleFiles(mediaPath, filename string) []models.ExternalSubtitleFile {
+	dir := filepath.Dir(mediaPath)
+	basename := strings.TrimSuffix(filename, filepath.Ext(filename))
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return fmt.Errorf("read directory: %w", err)
+		return nil
 	}
 
-	if err := db.DeleteExternalSubtitleFilesForFile(mf.ID); err != nil {
-		return fmt.Errorf("delete old external subtitle files: %w", err)
-	}
-
+	var result []models.ExternalSubtitleFile
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -427,7 +445,6 @@ func ScanExternalSubtitles(mf *models.MediaFile) error {
 		if !IsExternalSubtitleExt(ext) {
 			continue
 		}
-		// The file's name without its extension must equal the basename or start with basename+"."
 		inner := strings.TrimSuffix(name, filepath.Ext(name))
 		if inner != basename && !strings.HasPrefix(inner, basename+".") {
 			continue
@@ -438,20 +455,34 @@ func ScanExternalSubtitles(mf *models.MediaFile) error {
 		lang, forced, sdh := parseExternalSubSuffix(suffix)
 		format := strings.TrimPrefix(ext, ".")
 
-		esf := &models.ExternalSubtitleFile{
-			MediaFileID: mf.ID,
-			Path:        filepath.Join(dir, name),
-			Filename:    name,
-			Language:    lang,
-			Format:      format,
-			Forced:      forced,
-			SDH:         sdh,
-		}
-		if err := db.InsertExternalSubtitleFile(esf); err != nil {
-			log.Printf("insert external subtitle %s: %v", name, err)
+		result = append(result, models.ExternalSubtitleFile{
+			Path:     filepath.Join(dir, name),
+			Filename: name,
+			Language: lang,
+			Format:   format,
+			Forced:   forced,
+			SDH:      sdh,
+		})
+	}
+	return result
+}
+
+// ScanExternalSubtitles detects subtitle sidecar files in the same directory as mf, stores them in
+// the DB, and returns the detected files so callers can use them without a second DB round-trip.
+func ScanExternalSubtitles(mf *models.MediaFile) ([]models.ExternalSubtitleFile, error) {
+	extSubs := detectExternalSubtitleFiles(mf.Path, mf.Filename)
+
+	if err := db.DeleteExternalSubtitleFilesForFile(mf.ID); err != nil {
+		return nil, fmt.Errorf("delete old external subtitle files: %w", err)
+	}
+
+	for i := range extSubs {
+		extSubs[i].MediaFileID = mf.ID
+		if err := db.InsertExternalSubtitleFile(&extSubs[i]); err != nil {
+			log.Printf("insert external subtitle %s: %v", extSubs[i].Filename, err)
 		}
 	}
-	return nil
+	return extSubs, nil
 }
 
 // parseExternalSubSuffix parses the part of an external subtitle filename between the media basename

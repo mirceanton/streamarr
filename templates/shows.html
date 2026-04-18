@@ -26,6 +26,7 @@
                     <th class="sortable" onclick="sortTable(this)">Series <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th class="sortable" onclick="sortTable(this)">Episodes <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th class="sortable" onclick="sortTable(this)">Language <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Sub Format <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th class="sortable" onclick="sortTable(this)">Status <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th style="width:3rem;"></th>
                 </tr>
@@ -39,6 +40,15 @@
                         {{if .LanguageOverride}}
                         <span class="badge bg-secondary" style="font-size:0.7rem;" title="Language override set">
                             <i class="bi bi-translate me-1"></i>{{join .LanguageOverride ", "}}
+                        </span>
+                        {{else}}
+                        <span class="text-muted-sa" style="font-size:0.85rem;">&mdash;</span>
+                        {{end}}
+                    </td>
+                    <td>
+                        {{if .SubtitleFormatOverride}}
+                        <span class="badge bg-secondary" style="font-size:0.7rem;" title="Subtitle format override set">
+                            <i class="bi bi-badge-cc me-1"></i>{{upper .SubtitleFormatOverride}}
                         </span>
                         {{else}}
                         <span class="text-muted-sa" style="font-size:0.85rem;">&mdash;</span>

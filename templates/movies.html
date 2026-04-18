@@ -30,6 +30,7 @@
                     <th class="sortable" onclick="sortTable(this)">Audio <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th class="sortable" onclick="sortTable(this)">Subs <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th class="sortable" onclick="sortTable(this)">Ext. Subs <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Sub Format <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th class="sortable" onclick="sortTable(this)">Status <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th style="width:3rem;"></th>
                 </tr>
@@ -44,6 +45,17 @@
                     <td class="stream-count" data-sort-value="{{len .AudioTracks}}">{{len .AudioTracks}}{{if .AudioTracks}} <span class="text-muted-sa" style="font-size:0.8rem;">({{audioLangs .AudioTracks}})</span>{{end}}</td>
                     <td class="stream-count" data-sort-value="{{len .SubtitleTracks}}">{{len .SubtitleTracks}}{{if .SubtitleTracks}} <span class="text-muted-sa" style="font-size:0.8rem;">({{subLangs .SubtitleTracks}})</span>{{end}}</td>
                     <td class="stream-count" data-sort-value="{{len .ExternalSubtitleFiles}}">{{len .ExternalSubtitleFiles}}{{if .ExternalSubtitleFiles}} <span class="text-muted-sa" style="font-size:0.8rem;">({{extSubLangs .ExternalSubtitleFiles}})</span>{{end}}</td>
+                    <td>
+                        {{if .SubtitleFormatOverride}}
+                        <span class="badge bg-secondary" style="font-size:0.7rem;" title="Subtitle format override set">
+                            <i class="bi bi-badge-cc me-1"></i>{{upper .SubtitleFormatOverride}}
+                        </span>
+                        {{else if $.GlobalSubtitleFormat}}
+                        <span class="text-muted-sa" style="font-size:0.85rem;" title="Using global setting">{{upper $.GlobalSubtitleFormat}}</span>
+                        {{else}}
+                        <span class="text-muted-sa" style="font-size:0.85rem;">&mdash;</span>
+                        {{end}}
+                    </td>
                     <td data-sort-value="{{if eq .ActiveJobStatus "running"}}3{{else if eq .ActiveJobStatus "pending"}}2{{else if .NeedsAttention}}1{{else}}0{{end}}">
                         {{if eq .ActiveJobStatus "running"}}
                         <span class="badge badge-status-running" style="font-size:0.7rem;" title="A job is currently processing this file"><i class="bi bi-gear-fill me-1"></i>Processing</span>
