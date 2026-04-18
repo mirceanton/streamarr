@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/mirceanton/streamarr/internal/db"
 	"github.com/mirceanton/streamarr/internal/models"
 )
@@ -84,4 +85,34 @@ func ShowsHandler(w http.ResponseWriter, r *http.Request) {
 		"GlobalLanguages": strings.Join(globalLangs, ", "),
 	}
 	render(w, "shows.html", data)
+}
+
+func SeriesEpisodesHandler(w http.ResponseWriter, r *http.Request) {
+	title := chi.URLParam(r, "seriesTitle")
+	needsAttention := r.URL.Query().Get("attention") == "1"
+
+	episodes, err := db.GetSeriesEpisodesForTable(title, needsAttention)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var libraryRootID int64
+	if len(episodes) > 0 {
+		libraryRootID = episodes[0].LibraryRootID
+	}
+
+	override, _ := db.GetLanguageOverride(libraryRootID, title, "series")
+	globalLangs, _ := db.GetPreferredLanguages()
+
+	data := map[string]interface{}{
+		"Page":             "shows",
+		"SeriesTitle":      title,
+		"LibraryRootID":    libraryRootID,
+		"Episodes":         episodes,
+		"LanguageOverride": override,
+		"NeedsAttention":   needsAttention,
+		"GlobalLanguages":  strings.Join(globalLangs, ", "),
+	}
+	render(w, "series.html", data)
 }

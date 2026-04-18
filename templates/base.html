@@ -457,6 +457,38 @@
         setInterval(_pollTrackedJobs, 5000);
     });
     </script>
+    <script>
+    function rescanFile(id, btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        fetch('/api/media/' + id + '/rescan', {method: 'POST'})
+            .then(r => {
+                if (!r.ok) throw new Error();
+                btn.innerHTML = '<i class="bi bi-check-lg text-success"></i>';
+                setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>'; }, 2000);
+            })
+            .catch(() => {
+                btn.innerHTML = '<i class="bi bi-x-lg text-danger"></i>';
+                setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>'; }, 2000);
+            });
+    }
+
+    function rescanSeries(title, libraryRootID, btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        const body = new URLSearchParams({title: title, library_root_id: libraryRootID});
+        fetch('/api/series/rescan', {method: 'POST', body: body})
+            .then(r => {
+                if (!r.ok) throw new Error();
+                btn.innerHTML = '<i class="bi bi-check-lg text-success"></i>';
+                setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>'; }, 2000);
+            })
+            .catch(() => {
+                btn.innerHTML = '<i class="bi bi-x-lg text-danger"></i>';
+                setTimeout(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-clockwise"></i>'; }, 2000);
+            });
+    }
+    </script>
     {{template "scripts" .}}
 </body>
 </html>

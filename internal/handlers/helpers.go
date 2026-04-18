@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/mirceanton/streamarr/internal/models"
@@ -39,6 +40,7 @@ var funcMap = template.FuncMap{
 	"audioLangs":  audioTrackLangs,
 	"subLangs":    subTrackLangs,
 	"extSubLangs": extSubLangs,
+	"pathEscape":  url.PathEscape,
 }
 
 func InitTemplates() error {
@@ -48,6 +50,7 @@ func InitTemplates() error {
 		"dashboard.html",
 		"movies.html",
 		"shows.html",
+		"series.html",
 		"media_detail.html",
 		"settings.html",
 		"jobs.html",

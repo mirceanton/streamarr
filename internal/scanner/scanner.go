@@ -121,7 +121,47 @@ func runScan(root *models.LibraryRoot, quickMode bool) error {
 		scanMu.Unlock()
 	}
 
+	// Full scan: remove DB records for files that no longer exist on disk.
+	// This preserves job history for files that still exist.
+	if !quickMode {
+		scanned := make(map[string]bool, len(files))
+		for _, f := range files {
+			scanned[f] = true
+		}
+		dbPaths, err := db.GetMediaFilePaths(root.ID)
+		if err != nil {
+			log.Printf("get media file paths for library %d: %v", root.ID, err)
+		} else {
+			for path, id := range dbPaths {
+				if !scanned[path] {
+					if err := db.DeleteMediaFileByID(id); err != nil {
+						log.Printf("delete stale record %s: %v", path, err)
+					}
+				}
+			}
+		}
+	}
+
 	db.UpdateLibraryScanTime(root.ID)
+	return nil
+}
+
+// RescanSeries re-probes all existing media files for a given series.
+func RescanSeries(seriesTitle string, libraryRootID int64) error {
+	paths, err := db.GetSeriesFilePaths(seriesTitle, libraryRootID)
+	if err != nil {
+		return fmt.Errorf("get series file paths: %w", err)
+	}
+	root, err := db.GetLibraryRoot(libraryRootID)
+	if err != nil {
+		return fmt.Errorf("get library root: %w", err)
+	}
+	preferredLangs, _ := db.GetPreferredLanguages()
+	for _, path := range paths {
+		if err := scanFile(root, path, preferredLangs); err != nil {
+			log.Printf("rescan series file %s: %v", path, err)
+		}
+	}
 	return nil
 }
 
