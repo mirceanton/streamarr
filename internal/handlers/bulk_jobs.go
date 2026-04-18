@@ -155,9 +155,9 @@ func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		ops := buildEpisodeOps(ep, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub)
+		ops, skipReason := buildEpisodeOps(ep, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub)
 		if len(ops) == 0 {
-			results = append(results, result{Filename: ep.Filename, Skipped: true, Reason: "no operations needed"})
+			results = append(results, result{Filename: ep.Filename, Skipped: true, Reason: skipReason})
 			continue
 		}
 
@@ -177,8 +177,10 @@ func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // buildEpisodeOps generates the operations for a single episode given language keep/extract sets.
-func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub map[string]bool) []models.Operation {
+// Returns the list of operations and, when the list is empty, a human-readable reason explaining why.
+func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub map[string]bool) ([]models.Operation, string) {
 	var ops []models.Operation
+	var skipReasons []string
 
 	// Audio: remove tracks whose language is NOT in keepAudio (if keepAudio is non-empty)
 	if len(keepAudio) > 0 {
@@ -193,10 +195,10 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 				removeAudioCount++
 			}
 		}
-		// Don't remove all audio tracks
 		remainingAudio := len(ep.AudioTracks) - removeAudioCount
-		if remainingAudio < 1 {
-			// Keep at least one track — skip audio removals entirely for this episode
+		if remainingAudio < 1 && removeAudioCount > 0 {
+			// All audio tracks would be removed — skip to preserve at least one track
+			skipReasons = append(skipReasons, "audio removal skipped: removing non-preferred tracks would leave no audio stream")
 			removeAudioCount = 0
 		}
 		if removeAudioCount > 0 {
@@ -222,20 +224,24 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 			if lang == "" {
 				lang = "und"
 			}
-			// Only extract text-based subtitles
-			if extractSub[lang] && !scanner.IsImageBasedSubtitle(st.Codec) {
-				baseName := strings.TrimSuffix(ep.Filename, filepath.Ext(ep.Filename))
-				ext := scanner.SubtitleExtension(st.Codec)
-				outputLang := lang
-				if outputLang == "" {
-					outputLang = "und"
+			if extractSub[lang] {
+				if scanner.IsImageBasedSubtitle(st.Codec) {
+					// Image-based subtitles cannot be extracted as text sidecar files
+					skipReasons = append(skipReasons, fmt.Sprintf("subtitle extraction skipped for stream %d (%s): %s is image-based", st.StreamIndex, lang, st.Codec))
+				} else {
+					baseName := strings.TrimSuffix(ep.Filename, filepath.Ext(ep.Filename))
+					ext := scanner.SubtitleExtension(st.Codec)
+					outputLang := lang
+					if outputLang == "" {
+						outputLang = "und"
+					}
+					outputPath := filepath.Join(filepath.Dir(ep.Path), fmt.Sprintf("%s.%s.%s", baseName, outputLang, ext))
+					ops = append(ops, models.Operation{
+						Type:        "extract_subtitle",
+						StreamIndex: st.StreamIndex,
+						OutputPath:  outputPath,
+					})
 				}
-				outputPath := filepath.Join(filepath.Dir(ep.Path), fmt.Sprintf("%s.%s.%s", baseName, outputLang, ext))
-				ops = append(ops, models.Operation{
-					Type:        "extract_subtitle",
-					StreamIndex: st.StreamIndex,
-					OutputPath:  outputPath,
-				})
 			}
 		}
 	}
@@ -277,7 +283,13 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 		}
 	}
 
-	return ops
+	if len(ops) == 0 {
+		if len(skipReasons) > 0 {
+			return ops, strings.Join(skipReasons, "; ")
+		}
+		return ops, "no operations needed: episode already matches requested configuration"
+	}
+	return ops, ""
 }
 
 // toLangSet converts a language slice to a lookup map.
