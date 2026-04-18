@@ -46,6 +46,60 @@
     </div>
 </div>
 
+<!-- Language Preference -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-translate me-2"></i>Language Preference</div>
+    <div class="card-body">
+        {{if eq .LibraryType "movies"}}
+        {{if .LanguageOverride}}
+        <div class="mb-3">
+            <small class="text-muted-sa">Override (this movie only)</small>
+            <div><strong>{{join .LanguageOverride ", "}}</strong></div>
+        </div>
+        <form hx-post="/api/overrides/movie/{{.ID}}" hx-swap="none" class="d-flex gap-2 align-items-end mb-2">
+            <div class="flex-grow-1">
+                <label class="form-label mb-1" style="font-size:0.85rem;">Update override <span class="text-muted-sa">(ISO 639-2 codes, e.g. <code>eng, fra</code>)</span></label>
+                <input type="text" class="form-control form-control-sm" name="languages" value="{{join .LanguageOverride ", "}}">
+            </div>
+            <button type="submit" class="btn btn-sa btn-sm">Save</button>
+        </form>
+        <button class="btn btn-outline-danger btn-sm" hx-delete="/api/overrides/movie/{{.ID}}" hx-swap="none"
+            hx-confirm="Clear language override for this movie and use the global setting?">
+            <i class="bi bi-x-circle me-1"></i>Clear Override (use global)
+        </button>
+        {{else}}
+        <div class="mb-3">
+            <small class="text-muted-sa">Using global setting</small>
+            <div>{{$.GlobalLanguages}}</div>
+        </div>
+        <form hx-post="/api/overrides/movie/{{.ID}}" hx-swap="none" class="d-flex gap-2 align-items-end">
+            <div class="flex-grow-1">
+                <label class="form-label mb-1" style="font-size:0.85rem;">Set override for this movie <span class="text-muted-sa">(ISO 639-2 codes, e.g. <code>eng, fra</code>)</span></label>
+                <input type="text" class="form-control form-control-sm" name="languages" placeholder="e.g. eng, fra">
+            </div>
+            <button type="submit" class="btn btn-sa btn-sm">Save</button>
+        </form>
+        {{end}}
+        {{else}}
+        {{if .LanguageOverride}}
+        <div>
+            <small class="text-muted-sa">Series override</small>
+            <div><strong>{{join .LanguageOverride ", "}}</strong></div>
+        </div>
+        {{else}}
+        <div>
+            <small class="text-muted-sa">Using global setting</small>
+            <div>{{$.GlobalLanguages}}</div>
+        </div>
+        {{end}}
+        <div class="mt-2" style="font-size:0.85rem;">
+            <i class="bi bi-info-circle me-1 text-muted-sa"></i>
+            <span class="text-muted-sa">Language preferences for TV shows are managed per series on the <a href="/shows">Shows</a> page.</span>
+        </div>
+        {{end}}
+    </div>
+</div>
+
 <!-- Audio Tracks -->
 <div class="card mb-4">
     <div class="card-header"><i class="bi bi-volume-up me-2"></i>Audio Tracks ({{len .AudioTracks}})</div>

@@ -116,13 +116,30 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 		}
 	}
 
+	// Resolve effective preferred languages: per-item override takes precedence over global
+	effectiveLangs := preferredLangs
+	switch root.Type {
+	case "movies":
+		if override, _ := db.GetLanguageOverride(root.ID, path, "movie"); len(override) > 0 {
+			effectiveLangs = override
+		}
+	case "shows":
+		seriesKey := title
+		if seriesKey == "" {
+			seriesKey = "Unknown Series"
+		}
+		if override, _ := db.GetLanguageOverride(root.ID, seriesKey, "series"); len(override) > 0 {
+			effectiveLangs = override
+		}
+	}
+
 	// Probe streams
 	audioTracks, subtitleTracks, err := Probe(path)
 	if err != nil {
 		return fmt.Errorf("probe: %w", err)
 	}
 
-	needsAttention := checkNeedsAttention(audioTracks, subtitleTracks, preferredLangs)
+	needsAttention := checkNeedsAttention(audioTracks, subtitleTracks, effectiveLangs)
 
 	mf := &models.MediaFile{
 		LibraryRootID:  root.ID,

@@ -154,6 +154,20 @@ func GetMediaFile(id int64) (*models.MediaFile, error) {
 		return nil, err
 	}
 
+	itemType := "movie"
+	itemKey := f.Path
+	if f.LibraryType == "shows" {
+		itemType = "series"
+		itemKey = f.Title
+		if itemKey == "" {
+			itemKey = "Unknown Series"
+		}
+	}
+	f.LanguageOverride, err = GetLanguageOverride(f.LibraryRootID, itemKey, itemType)
+	if err != nil {
+		return nil, err
+	}
+
 	return &f, nil
 }
 
@@ -444,4 +458,43 @@ func GetPreferredLanguages() ([]string, error) {
 		return []string{"eng"}, nil
 	}
 	return langs, nil
+}
+
+// --- Language Overrides ---
+
+// GetLanguageOverride returns the language override for a movie (itemType="movie", itemKey=path)
+// or a series (itemType="series", itemKey=title). Returns nil if no override is set.
+func GetLanguageOverride(libraryRootID int64, itemKey, itemType string) ([]string, error) {
+	var val string
+	err := DB.QueryRow(`SELECT preferred_languages FROM language_overrides WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
+		libraryRootID, itemKey, itemType).Scan(&val)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var langs []string
+	if err := json.Unmarshal([]byte(val), &langs); err != nil {
+		return nil, err
+	}
+	return langs, nil
+}
+
+func SetLanguageOverride(libraryRootID int64, itemKey, itemType string, langs []string) error {
+	langsJSON, err := json.Marshal(langs)
+	if err != nil {
+		return err
+	}
+	_, err = DB.Exec(`INSERT INTO language_overrides (library_root_id, item_key, item_type, preferred_languages)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(library_root_id, item_key, item_type) DO UPDATE SET preferred_languages = excluded.preferred_languages`,
+		libraryRootID, itemKey, itemType, string(langsJSON))
+	return err
+}
+
+func DeleteLanguageOverride(libraryRootID int64, itemKey, itemType string) error {
+	_, err := DB.Exec(`DELETE FROM language_overrides WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
+		libraryRootID, itemKey, itemType)
+	return err
 }

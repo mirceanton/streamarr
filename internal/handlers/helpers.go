@@ -20,6 +20,7 @@ var funcMap = template.FuncMap{
 	"langName":      languageName,
 	"formatSize":    formatSize,
 	"upper":         strings.ToUpper,
+	"join":          strings.Join,
 	"add":           func(a, b int) int { return a + b },
 	"deref": func(p *int) int {
 		if p != nil {

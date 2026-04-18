@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/mirceanton/streamarr/internal/db"
 	"github.com/mirceanton/streamarr/internal/models"
@@ -27,7 +28,8 @@ func ShowsHandler(w http.ResponseWriter, r *http.Request) {
 		s, ok := seriesMap[key]
 		if !ok {
 			s = &models.Series{
-				Title: key,
+				Title:         key,
+				LibraryRootID: f.LibraryRootID,
 			}
 			seriesMap[key] = s
 		}
@@ -35,6 +37,12 @@ func ShowsHandler(w http.ResponseWriter, r *http.Request) {
 		if f.NeedsAttention {
 			s.NeedsAttention = true
 		}
+	}
+
+	// Populate per-series language overrides
+	for key, s := range seriesMap {
+		override, _ := db.GetLanguageOverride(s.LibraryRootID, key, "series")
+		s.LanguageOverride = override
 	}
 
 	var series []models.Series
@@ -66,10 +74,13 @@ func ShowsHandler(w http.ResponseWriter, r *http.Request) {
 		return series[i].Title < series[j].Title
 	})
 
+	globalLangs, _ := db.GetPreferredLanguages()
+
 	data := map[string]interface{}{
-		"Page":           "shows",
-		"Series":         series,
-		"NeedsAttention": needsAttention,
+		"Page":            "shows",
+		"Series":          series,
+		"NeedsAttention":  needsAttention,
+		"GlobalLanguages": strings.Join(globalLangs, ", "),
 	}
 	render(w, "shows.html", data)
 }

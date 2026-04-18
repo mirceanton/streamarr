@@ -30,7 +30,8 @@ type MediaFile struct {
 	AudioTracks           []AudioTrack
 	SubtitleTracks        []SubtitleTrack
 	ExternalSubtitleFiles []ExternalSubtitleFile
-	LibraryType           string // from library_roots.type
+	LibraryType           string   // from library_roots.type
+	LanguageOverride      []string // nil means use global setting
 }
 
 // ExternalSubtitleFile represents a subtitle sidecar file found on disk alongside a media file.
@@ -102,10 +103,12 @@ type Operation struct {
 
 // Series groups episodes for the shows view.
 type Series struct {
-	Title          string
-	Path           string
-	Episodes       []MediaFile
-	NeedsAttention bool
+	Title            string
+	Path             string
+	LibraryRootID    int64
+	Episodes         []MediaFile
+	NeedsAttention   bool
+	LanguageOverride []string // nil means use global setting
 }
 
 // ScanStatus tracks whether a scan is in progress.
