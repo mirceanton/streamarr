@@ -461,6 +461,49 @@ func GetPendingJobs() ([]models.Job, error) {
 	return jobs, rows.Err()
 }
 
+// GetSeriesEpisodesFull returns all media files for a given series title with full track data populated.
+func GetSeriesEpisodesFull(seriesTitle string, libraryRootID int64) ([]models.MediaFile, error) {
+	rows, err := DB.Query(`SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons, lr.type
+		FROM media_files mf JOIN library_roots lr ON mf.library_root_id = lr.id
+		WHERE mf.title = ? AND mf.library_root_id = ? AND lr.type = 'shows'
+		ORDER BY mf.season, mf.episode`, seriesTitle, libraryRootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []models.MediaFile
+	for rows.Next() {
+		var f models.MediaFile
+		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons, &f.LibraryType); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Populate tracks for each file
+	for i := range files {
+		tracks, err := GetAudioTracks(files[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		files[i].AudioTracks = tracks
+
+		subs, err := GetSubtitleTracks(files[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		files[i].SubtitleTracks = subs
+	}
+
+	return files, nil
+}
+
 // --- Dashboard ---
 
 func GetDashboardStats() (*models.DashboardStats, error) {
