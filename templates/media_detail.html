@@ -102,12 +102,22 @@
 
 <!-- Audio Tracks -->
 <div class="card mb-4">
-    <div class="card-header"><i class="bi bi-volume-up me-2"></i>Audio Tracks ({{len .AudioTracks}})</div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-volume-up me-2"></i>Audio Tracks ({{len .AudioTracks}})</span>
+        {{if gt (len .AudioTracks) 1}}
+        <button class="btn btn-outline-danger btn-sm" onclick="bulkRemoveAudio()">
+            <i class="bi bi-trash3"></i> Remove Selected
+        </button>
+        {{end}}
+    </div>
     {{if .AudioTracks}}
     <div class="table-responsive">
         <table class="table">
             <thead>
                 <tr>
+                    {{if gt (len .AudioTracks) 1}}
+                    <th style="width:2rem;"><input type="checkbox" id="audioSelectAll" onchange="toggleSelectAll('audio', this.checked)"></th>
+                    {{end}}
                     <th>#</th>
                     <th>Codec</th>
                     <th>Language</th>
@@ -121,6 +131,15 @@
                 {{$audioCount := len .AudioTracks}}
                 {{range .AudioTracks}}
                 <tr>
+                    {{if gt $audioCount 1}}
+                    <td>
+                        <input type="checkbox" class="audio-select"
+                            data-stream-index="{{.StreamIndex}}"
+                            data-codec="{{codecName .Codec}}"
+                            data-lang="{{langName .Language}}"
+                            onchange="updateSelectAll('audio')">
+                    </td>
+                    {{end}}
                     <td class="text-muted-sa">{{.StreamIndex}}</td>
                     <td>{{codecName .Codec}}</td>
                     <td>{{langName .Language}}</td>
@@ -151,12 +170,25 @@
 
 <!-- Subtitle Tracks -->
 <div class="card mb-4">
-    <div class="card-header"><i class="bi bi-chat-text me-2"></i>Subtitle Tracks ({{len .SubtitleTracks}})</div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-chat-text me-2"></i>Subtitle Tracks ({{len .SubtitleTracks}})</span>
+        {{if .SubtitleTracks}}
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-sa btn-sm" onclick="bulkExtractSubtitle()">
+                <i class="bi bi-box-arrow-up-right"></i> Extract Selected
+            </button>
+            <button class="btn btn-outline-danger btn-sm" onclick="bulkRemoveSubtitle()">
+                <i class="bi bi-trash3"></i> Remove Selected
+            </button>
+        </div>
+        {{end}}
+    </div>
     {{if .SubtitleTracks}}
     <div class="table-responsive">
         <table class="table">
             <thead>
                 <tr>
+                    <th style="width:2rem;"><input type="checkbox" id="subSelectAll" onchange="toggleSelectAll('subtitle', this.checked)"></th>
                     <th>#</th>
                     <th>Codec</th>
                     <th>Language</th>
@@ -168,6 +200,14 @@
             <tbody>
                 {{range .SubtitleTracks}}
                 <tr>
+                    <td>
+                        <input type="checkbox" class="subtitle-select"
+                            data-stream-index="{{.StreamIndex}}"
+                            data-codec="{{codecName .Codec}}"
+                            data-lang="{{langName .Language}}"
+                            data-image-sub="{{isImageSub .Codec}}"
+                            onchange="updateSelectAll('subtitle')">
+                    </td>
                     <td class="text-muted-sa">{{.StreamIndex}}</td>
                     <td>
                         {{codecName .Codec}}
@@ -335,6 +375,46 @@ function removeOp(index) {
 function clearOps() {
     operations = [];
     renderOps();
+}
+
+function toggleSelectAll(type, checked) {
+    document.querySelectorAll('.' + type + '-select').forEach(cb => cb.checked = checked);
+}
+
+function updateSelectAll(type) {
+    const checkboxes = Array.from(document.querySelectorAll('.' + type + '-select'));
+    const allChecked = checkboxes.every(cb => cb.checked);
+    const someChecked = checkboxes.some(cb => cb.checked);
+    const selectAll = document.getElementById(type === 'audio' ? 'audioSelectAll' : 'subSelectAll');
+    if (selectAll) {
+        selectAll.checked = allChecked;
+        selectAll.indeterminate = someChecked && !allChecked;
+    }
+}
+
+function bulkRemoveAudio() {
+    const checked = document.querySelectorAll('.audio-select:checked');
+    if (checked.length === 0) return;
+    checked.forEach(cb => {
+        addRemoveOp('remove_audio', parseInt(cb.dataset.streamIndex), 'Remove audio: ' + cb.dataset.codec + ' (' + cb.dataset.lang + ')');
+    });
+}
+
+function bulkRemoveSubtitle() {
+    const checked = document.querySelectorAll('.subtitle-select:checked');
+    if (checked.length === 0) return;
+    checked.forEach(cb => {
+        addRemoveOp('remove_subtitle', parseInt(cb.dataset.streamIndex), 'Remove sub: ' + cb.dataset.codec + ' (' + cb.dataset.lang + ')');
+    });
+}
+
+function bulkExtractSubtitle() {
+    const checked = document.querySelectorAll('.subtitle-select:checked');
+    if (checked.length === 0) return;
+    checked.forEach(cb => {
+        if (cb.dataset.imageSub === 'true') return;
+        addExtractOp(parseInt(cb.dataset.streamIndex), 'Extract sub: ' + cb.dataset.codec + ' (' + cb.dataset.lang + ')');
+    });
 }
 
 function applyOps() {
