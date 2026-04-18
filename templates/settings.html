@@ -135,6 +135,29 @@
         </form>
     </div>
 </div>
+
+<!-- Parallel Jobs -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-cpu me-2"></i>Parallel Jobs</div>
+    <div class="card-body">
+        <form hx-post="/api/settings/parallel-jobs" hx-swap="none">
+            <p class="text-muted-sa" style="font-size:0.85rem;">
+                Number of job workers to run in parallel. Takes effect on the next application restart.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <input type="number" class="form-control" name="parallel_jobs"
+                        value="{{.ParallelJobs}}" min="1" required>
+                </div>
+                <div class="col-md-8 d-flex align-items-end">
+                    <button type="submit" class="btn btn-sa">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 {{end}}
 
 {{define "scan_status"}}

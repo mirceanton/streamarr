@@ -22,12 +22,14 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 
 	langs, _ := db.GetPreferredLanguages()
 	scanStatus := scanner.IsScanRunning()
+	parallelJobs := db.GetParallelJobs()
 
 	data := map[string]interface{}{
 		"Page":               "settings",
 		"LibraryRoots":       roots,
 		"PreferredLanguages": strings.Join(langs, ", "),
 		"ScanStatus":         scanStatus,
+		"ParallelJobs":       parallelJobs,
 	}
 	render(w, "settings.html", data)
 }
@@ -161,6 +163,28 @@ func UpdateLanguagesHandler(w http.ResponseWriter, r *http.Request) {
 
 	langsJSON, _ := json.Marshal(langs)
 	if err := db.SetSetting("preferred_languages", string(langsJSON)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/settings")
+	w.WriteHeader(http.StatusOK)
+}
+
+func UpdateParallelJobsHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	nStr := strings.TrimSpace(r.FormValue("parallel_jobs"))
+	n, err := strconv.Atoi(nStr)
+	if err != nil || n < 1 {
+		http.Error(w, "parallel_jobs must be a positive integer", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.SetSetting("parallel_jobs", strconv.Itoa(n)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

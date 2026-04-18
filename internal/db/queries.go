@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/mirceanton/streamarr/internal/models"
@@ -511,6 +512,18 @@ func GetPreferredLanguages() ([]string, error) {
 		return []string{"eng"}, nil
 	}
 	return langs, nil
+}
+
+func GetParallelJobs() int {
+	val, err := GetSetting("parallel_jobs")
+	if err != nil || val == "" {
+		return 1
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n < 1 {
+		return 1
+	}
+	return n
 }
 
 // --- Language Overrides ---

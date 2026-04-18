@@ -60,6 +60,7 @@ func main() {
 	r.Post("/api/settings/libraries", handlers.AddLibraryHandler)
 	r.Delete("/api/settings/libraries/{id}", handlers.DeleteLibraryHandler)
 	r.Post("/api/settings/languages", handlers.UpdateLanguagesHandler)
+	r.Post("/api/settings/parallel-jobs", handlers.UpdateParallelJobsHandler)
 	r.Post("/api/overrides/movie/{id}", handlers.SetMovieLanguageOverrideHandler)
 	r.Delete("/api/overrides/movie/{id}", handlers.DeleteMovieLanguageOverrideHandler)
 	r.Post("/api/overrides/series", handlers.SetSeriesLanguageOverrideHandler)

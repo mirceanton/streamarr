@@ -117,8 +117,16 @@ func migrate() error {
 	}
 
 	// Insert default settings if not exists
-	_, err := DB.Exec(`INSERT OR IGNORE INTO settings (key, value) VALUES ('preferred_languages', '["eng"]')`)
-	return err
+	defaults := []struct{ key, value string }{
+		{"preferred_languages", `["eng"]`},
+		{"parallel_jobs", "1"},
+	}
+	for _, d := range defaults {
+		if _, err := DB.Exec(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, d.key, d.value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func Close() {
