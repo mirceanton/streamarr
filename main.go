@@ -44,9 +44,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 
 	// Pages
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/movies", http.StatusFound)
-	})
+	r.Get("/", handlers.DashboardHandler)
 	r.Get("/movies", handlers.MoviesHandler)
 	r.Get("/shows", handlers.ShowsHandler)
 	r.Get("/media/{id}", handlers.MediaDetailHandler)

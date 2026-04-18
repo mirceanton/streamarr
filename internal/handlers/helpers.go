@@ -35,6 +35,7 @@ func InitTemplates() error {
 	pageTemplates = make(map[string]*template.Template)
 
 	pages := []string{
+		"dashboard.html",
 		"movies.html",
 		"shows.html",
 		"media_detail.html",
