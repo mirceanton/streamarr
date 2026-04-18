@@ -92,7 +92,7 @@ type Job struct {
 
 // Operation represents a single action within a job.
 type Operation struct {
-	Type        string `json:"type"` // remove_audio, remove_subtitle, extract_subtitle, embed_subtitle
+	Type        string `json:"type"` // remove_audio, remove_subtitle, extract_subtitle, embed_subtitle, delete_external_subtitle
 	StreamIndex int    `json:"stream_index"`
 	OutputPath  string `json:"output_path,omitempty"`
 	// embed_subtitle fields

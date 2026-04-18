@@ -283,7 +283,7 @@
             </thead>
             <tbody>
                 {{range .ExternalSubtitleFiles}}
-                <tr>
+                <tr data-ext-path="{{.Path}}">
                     <td class="text-muted-sa" style="font-size:0.85rem;word-break:break-all;">{{.Filename}}</td>
                     <td>{{if .Language}}{{langName .Language}}{{else}}<span class="text-muted-sa">&mdash;</span>{{end}}</td>
                     <td><span class="badge bg-secondary" style="font-size:0.7rem;">{{upper .Format}}</span></td>
@@ -292,13 +292,18 @@
                         {{if .SDH}}<span class="badge bg-secondary" style="font-size:0.7rem;">SDH</span>{{end}}
                     </td>
                     <td>
-                        <button class="btn btn-outline-sa btn-sm"
+                        <button class="btn btn-outline-sa btn-sm me-1"
                             data-source="{{.Path}}"
                             data-lang="{{.Language}}"
                             data-forced="{{.Forced}}"
                             data-sdh="{{.SDH}}"
                             onclick="addEmbedOpFromBtn(this)">
                             <i class="bi bi-box-arrow-in-down-right"></i> Embed
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm"
+                            data-path="{{.Path}}"
+                            onclick="addDeleteExternalSubOp(this)">
+                            <i class="bi bi-trash3"></i> Remove
                         </button>
                     </td>
                 </tr>
@@ -361,9 +366,16 @@ function addEmbedOpFromBtn(btn) {
     const lang = btn.dataset.lang || '';
     const forced = btn.dataset.forced === 'true';
     const sdh = btn.dataset.sdh === 'true';
-    if (operations.find(op => op.type === 'embed_subtitle' && op.source_path === sourcePath)) return;
+    if (operations.find(op => (op.type === 'embed_subtitle' || op.type === 'delete_external_subtitle') && op.source_path === sourcePath)) return;
     const filename = sourcePath.split('/').pop();
     operations.push({ type: 'embed_subtitle', stream_index: -1, source_path: sourcePath, language: lang, forced: forced, sdh: sdh });
+    renderOps();
+}
+
+function addDeleteExternalSubOp(btn) {
+    const path = btn.dataset.path;
+    if (operations.find(op => (op.type === 'delete_external_subtitle' || op.type === 'embed_subtitle') && op.source_path === path)) return;
+    operations.push({ type: 'delete_external_subtitle', source_path: path });
     renderOps();
 }
 
@@ -402,6 +414,20 @@ function syncTrackStates() {
         }
     });
 
+    document.querySelectorAll('[data-ext-path]').forEach(row => {
+        const path = row.dataset.extPath;
+        const isQueued = operations.some(op =>
+            (op.type === 'delete_external_subtitle' || op.type === 'embed_subtitle') && op.source_path === path
+        );
+        if (isQueued) {
+            row.classList.add('track-queued');
+            row.querySelectorAll('button').forEach(el => el.disabled = true);
+        } else {
+            row.classList.remove('track-queued');
+            row.querySelectorAll('button').forEach(el => el.disabled = false);
+        }
+    });
+
     updateSelectAll('audio');
     updateSelectAll('subtitle');
 }
@@ -423,6 +449,9 @@ function renderOps() {
         if (op.type === 'embed_subtitle') {
             icon = 'box-arrow-in-down-right';
             label = 'embed subtitle: ' + (op.source_path || '').split('/').pop();
+        } else if (op.type === 'delete_external_subtitle') {
+            icon = 'trash3';
+            label = 'delete external subtitle: ' + (op.source_path || '').split('/').pop();
         } else {
             icon = op.type.includes('remove') ? 'trash3' : 'box-arrow-up-right';
             label = op.type.replace(/_/g, ' ') + ' (stream ' + op.stream_index + ')';
