@@ -126,6 +126,7 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons,
 		(SELECT COUNT(*) FROM audio_tracks WHERE media_file_id = mf.id) as audio_count,
 		(SELECT COUNT(*) FROM subtitle_tracks WHERE media_file_id = mf.id) as sub_count,
+		(SELECT COUNT(*) FROM external_subtitle_files WHERE media_file_id = mf.id) as ext_sub_count,
 		lr.type
 		FROM media_files mf
 		JOIN library_roots lr ON mf.library_root_id = lr.id
@@ -144,15 +145,16 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 	var files []models.MediaFile
 	for rows.Next() {
 		var f models.MediaFile
-		var audioCount, subCount int
+		var audioCount, subCount, extSubCount int
 		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
 			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
-			&audioCount, &subCount, &f.LibraryType); err != nil {
+			&audioCount, &subCount, &extSubCount, &f.LibraryType); err != nil {
 			return nil, err
 		}
-		// Store counts as fake tracks for template use
+		// Store counts as fake slices for template use
 		f.AudioTracks = make([]models.AudioTrack, audioCount)
 		f.SubtitleTracks = make([]models.SubtitleTrack, subCount)
+		f.ExternalSubtitleFiles = make([]models.ExternalSubtitleFile, extSubCount)
 		files = append(files, f)
 	}
 	return files, rows.Err()
