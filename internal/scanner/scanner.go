@@ -118,11 +118,12 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 
 	// Resolve effective preferred languages: per-item override takes precedence over global
 	effectiveLangs := preferredLangs
-	if root.Type == "movies" {
+	switch root.Type {
+	case "movies":
 		if override, _ := db.GetLanguageOverride(root.ID, path, "movie"); len(override) > 0 {
 			effectiveLangs = override
 		}
-	} else if root.Type == "shows" {
+	case "shows":
 		seriesKey := title
 		if seriesKey == "" {
 			seriesKey = "Unknown Series"
