@@ -134,10 +134,15 @@ func processJob(jobID int64) {
 	} else {
 		db.DeleteTracksForFile(mf.ID)
 		preferredLangs, _ := db.GetPreferredLanguages()
+		// Use per-item override if one is set, matching the scanner's behavior
+		effectiveLangs := preferredLangs
+		if len(mf.LanguageOverride) > 0 {
+			effectiveLangs = mf.LanguageOverride
+		}
 		needsAttention := false
 
 		preferred := make(map[string]bool)
-		for _, l := range preferredLangs {
+		for _, l := range effectiveLangs {
 			preferred[strings.ToLower(l)] = true
 		}
 		preferred["und"] = true
@@ -153,7 +158,7 @@ func processJob(jobID int64) {
 		}
 
 		subPreferred := make(map[string]bool)
-		for _, l := range preferredLangs {
+		for _, l := range effectiveLangs {
 			subPreferred[strings.ToLower(l)] = true
 		}
 		subPreferred[""] = true
