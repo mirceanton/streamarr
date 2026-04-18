@@ -68,9 +68,16 @@
                         {{end}}
                     </td>
                     <td onclick="event.stopPropagation()">
-                        <button class="btn btn-outline-secondary btn-sm" onclick="rescanFile({{.ID}}, this)" title="Rescan this file">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="rescanFile({{.ID}}, this)" title="Rescan this file">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" hx-delete="/api/media/{{.ID}}" hx-swap="none"
+                                hx-confirm="Remove '{{.Title}}' from the database? The file will NOT be deleted from disk."
+                                title="Remove from database only (file stays on disk)">
+                                <i class="bi bi-trash3"></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>
                 {{end}}

@@ -64,6 +64,33 @@ func MediaDetailHandler(w http.ResponseWriter, r *http.Request) {
 	render(w, "media_detail.html", data)
 }
 
+func DeleteMediaFileHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	mf, err := db.GetMediaFile(id)
+	if err != nil {
+		http.Error(w, "Media file not found", http.StatusNotFound)
+		return
+	}
+
+	if err := db.DeleteMediaFileByID(id); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if mf.LibraryType == "movies" {
+		w.Header().Set("HX-Redirect", "/movies")
+	} else {
+		w.Header().Set("HX-Redirect", "/shows")
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
 func RescanFileHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)

@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -85,6 +86,32 @@ func ShowsHandler(w http.ResponseWriter, r *http.Request) {
 		"GlobalLanguages": strings.Join(globalLangs, ", "),
 	}
 	render(w, "shows.html", data)
+}
+
+func DeleteSeriesHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+	title := r.FormValue("title")
+	libRootIDStr := r.FormValue("library_root_id")
+	if title == "" || libRootIDStr == "" {
+		http.Error(w, "title and library_root_id are required", http.StatusBadRequest)
+		return
+	}
+	libRootID, err := strconv.ParseInt(libRootIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid library_root_id", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.DeleteSeriesByTitle(title, libRootID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/shows")
+	w.WriteHeader(http.StatusOK)
 }
 
 func SeriesEpisodesHandler(w http.ResponseWriter, r *http.Request) {
