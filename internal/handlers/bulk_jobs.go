@@ -85,11 +85,11 @@ func GetSeriesTracksHandler(w http.ResponseWriter, r *http.Request) {
 
 // BulkJobRequest is the JSON body for POST /api/bulk-jobs/series.
 type BulkJobRequest struct {
-	SeriesTitle               string   `json:"series_title"`
-	LibraryRootID             int64    `json:"library_root_id"`
-	KeepAudioLanguages        []string `json:"keep_audio_languages"`
-	KeepSubtitleLanguages     []string `json:"keep_subtitle_languages"`
-	ExtractSubtitleLanguages  []string `json:"extract_subtitle_languages"`
+	SeriesTitle              string   `json:"series_title"`
+	LibraryRootID            int64    `json:"library_root_id"`
+	KeepAudioLanguages       []string `json:"keep_audio_languages"`
+	KeepSubtitleLanguages    []string `json:"keep_subtitle_languages"`
+	ExtractSubtitleLanguages []string `json:"extract_subtitle_languages"`
 }
 
 // BulkJobsSeriesHandler creates one job per episode in a series based on language-level operations.
