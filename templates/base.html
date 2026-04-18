@@ -120,10 +120,17 @@
             vertical-align: middle;
         }
         .table tbody tr:hover {
-            background-color: rgba(93, 156, 236, 0.04);
+            background-color: rgba(93, 156, 236, 0.08);
         }
         .table tbody tr.clickable-row {
             cursor: pointer;
+        }
+        .table tbody tr.track-queued {
+            opacity: 0.45;
+            background-color: rgba(248, 81, 73, 0.06) !important;
+        }
+        .table tbody tr.track-queued:hover {
+            background-color: rgba(248, 81, 73, 0.06) !important;
         }
         .badge-attention {
             background-color: var(--sa-warning);
