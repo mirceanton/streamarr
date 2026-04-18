@@ -129,6 +129,9 @@ type BulkJobRequest struct {
 	ExtractSubtitleTracks        []TrackFilter `json:"extract_subtitle_tracks"`
 	EmbedExternalSubtitleTracks  []TrackFilter `json:"embed_external_subtitle_tracks"`
 	DeleteExternalSubtitleTracks []TrackFilter `json:"delete_external_subtitle_tracks"`
+	// SetAudioLanguage, when non-empty, sets the language tag on the single undefined audio track.
+	// Only applies to episodes that have exactly one audio track with an undefined language.
+	SetAudioLanguage string `json:"set_audio_language"`
 }
 
 // BulkJobsSeriesHandler creates one job per episode in a series based on language+format-level operations.
@@ -181,7 +184,7 @@ func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		ops, skipReason := buildEpisodeOps(ep, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub)
+		ops, skipReason := buildEpisodeOps(ep, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub, req.SetAudioLanguage)
 		if len(ops) == 0 {
 			results = append(results, result{Filename: ep.Filename, Skipped: true, Reason: skipReason})
 			continue
@@ -204,9 +207,33 @@ func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 
 // buildEpisodeOps generates the operations for a single episode given language+format keep/extract sets.
 // Returns the list of operations and, when the list is empty, a human-readable reason explaining why.
-func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub map[string]bool) ([]models.Operation, string) {
+func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub map[string]bool, setAudioLang string) ([]models.Operation, string) {
 	var ops []models.Operation
 	var skipReasons []string
+
+	// Set audio language: only for episodes with exactly 1 audio track that has an undefined language.
+	if setAudioLang != "" {
+		if len(ep.AudioTracks) == 1 {
+			at := ep.AudioTracks[0]
+			lang := at.Language
+			if lang == "" {
+				lang = "und"
+			}
+			if lang == "und" {
+				ops = append(ops, models.Operation{
+					Type:        "set_language",
+					StreamIndex: at.StreamIndex,
+					Language:    setAudioLang,
+				})
+			} else {
+				skipReasons = append(skipReasons, "audio language not set: the single audio track already has language '"+at.Language+"'")
+			}
+		} else if len(ep.AudioTracks) == 0 {
+			skipReasons = append(skipReasons, "audio language not set: no audio tracks found")
+		} else {
+			skipReasons = append(skipReasons, fmt.Sprintf("audio language not set: episode has %d audio tracks (only episodes with a single undefined track are supported)", len(ep.AudioTracks)))
+		}
+	}
 
 	// Audio: remove tracks whose language is NOT in keepAudio (if keepAudio is non-empty)
 	if len(keepAudio) > 0 {
