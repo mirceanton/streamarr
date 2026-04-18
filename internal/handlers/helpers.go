@@ -29,6 +29,12 @@ var funcMap = template.FuncMap{
 		return 0
 	},
 	"hasValue": func(p *int) bool { return p != nil },
+	"derefStr": func(p *string) string {
+		if p != nil {
+			return *p
+		}
+		return ""
+	},
 }
 
 func InitTemplates() error {

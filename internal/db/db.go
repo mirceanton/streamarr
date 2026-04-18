@@ -126,6 +126,16 @@ func migrate() error {
 			return err
 		}
 	}
+
+	// Add scan_schedule column to library_roots if it doesn't exist (idempotent)
+	var scanScheduleColCount int
+	DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('library_roots') WHERE name = 'scan_schedule'`).Scan(&scanScheduleColCount)
+	if scanScheduleColCount == 0 {
+		if _, err := DB.Exec(`ALTER TABLE library_roots ADD COLUMN scan_schedule TEXT`); err != nil {
+			return fmt.Errorf("add scan_schedule column: %w", err)
+		}
+	}
+
 	return nil
 }
 

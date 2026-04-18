@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/mirceanton/streamarr/internal/db"
 	"github.com/mirceanton/streamarr/internal/scanner"
+	"github.com/mirceanton/streamarr/internal/scheduler"
 )
 
 func SettingsHandler(w http.ResponseWriter, r *http.Request) {
@@ -101,8 +102,17 @@ func ScanLibraryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.ParseForm()
+	scanType := r.FormValue("scan_type")
+
 	go func() {
-		if err := scanner.ScanLibrary(root); err != nil {
+		var err error
+		if scanType == "quick" {
+			err = scanner.ScanLibraryQuick(root)
+		} else {
+			err = scanner.ScanLibrary(root)
+		}
+		if err != nil {
 			log.Printf("scan library %d: %v", id, err)
 		}
 	}()
@@ -124,14 +134,58 @@ func ScanAllHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.ParseForm()
+	scanType := r.FormValue("scan_type")
+
 	go func() {
 		for _, root := range roots {
 			r := root
-			if err := scanner.ScanLibrary(&r); err != nil {
+			var err error
+			if scanType == "quick" {
+				err = scanner.ScanLibraryQuick(&r)
+			} else {
+				err = scanner.ScanLibrary(&r)
+			}
+			if err != nil {
 				log.Printf("scan library %d: %v", r.ID, err)
 			}
 		}
 	}()
+
+	w.Header().Set("HX-Redirect", "/settings")
+	w.WriteHeader(http.StatusOK)
+}
+
+func UpdateLibraryScanScheduleHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	schedule := strings.TrimSpace(r.FormValue("schedule"))
+
+	if schedule != "" {
+		if err := scheduler.ValidateSchedule(schedule); err != nil {
+			http.Error(w, fmt.Sprintf("Invalid cron expression: %v", err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	if err := db.UpdateLibraryScanSchedule(id, schedule); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := scheduler.UpdateSchedule(id, schedule); err != nil {
+		log.Printf("update scheduler for library %d: %v", id, err)
+	}
 
 	w.Header().Set("HX-Redirect", "/settings")
 	w.WriteHeader(http.StatusOK)

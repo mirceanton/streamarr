@@ -16,9 +16,15 @@
         <span class="text-muted-sa">Season {{deref .Season}}, Episode {{deref .Episode}}</span>
         {{end}}
     </div>
-    {{if .NeedsAttention}}
-    <span class="badge badge-attention">Needs Attention</span>
-    {{end}}
+    <div class="d-flex align-items-center gap-2">
+        {{if .NeedsAttention}}
+        <span class="badge badge-attention">Needs Attention</span>
+        {{end}}
+        <button class="btn btn-outline-sa btn-sm" hx-post="/api/media/{{.ID}}/rescan" hx-swap="none"
+            title="Re-probe file streams and update database">
+            <i class="bi bi-arrow-clockwise"></i> Rescan
+        </button>
+    </div>
 </div>
 
 <!-- File Info -->
