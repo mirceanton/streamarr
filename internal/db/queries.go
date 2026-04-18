@@ -438,6 +438,11 @@ func HasPendingJob(mediaFileID int64) (bool, error) {
 	return count > 0, err
 }
 
+func ResetRunningJobs() error {
+	_, err := DB.Exec(`UPDATE jobs SET status = 'pending', started_at = NULL WHERE status = 'running'`)
+	return err
+}
+
 func GetPendingJobs() ([]models.Job, error) {
 	rows, err := DB.Query(`SELECT j.id, j.media_file_id, j.status, j.operations, COALESCE(j.ffmpeg_command,''), COALESCE(j.error,''),
 		j.created_at, j.started_at, j.finished_at, mf.filename, mf.path

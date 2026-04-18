@@ -22,6 +22,8 @@ var (
 )
 
 // Start begins the background job processor with the configured number of parallel workers.
+// On startup it resets any jobs that were left in "running" state (interrupted by a previous
+// shutdown) back to "pending", then re-enqueues all pending jobs.
 func Start() {
 	processorOnce.Do(func() {
 		workers := db.GetParallelJobs()
@@ -31,6 +33,22 @@ func Start() {
 		log.Printf("starting %d job worker(s)", workers)
 		for i := 0; i < workers; i++ {
 			go processLoop()
+		}
+
+		if err := db.ResetRunningJobs(); err != nil {
+			log.Printf("reset interrupted jobs: %v", err)
+		}
+
+		pending, err := db.GetPendingJobs()
+		if err != nil {
+			log.Printf("get pending jobs on startup: %v", err)
+			return
+		}
+		if len(pending) > 0 {
+			log.Printf("re-enqueuing %d pending job(s) from previous run", len(pending))
+			for _, j := range pending {
+				Enqueue(j.ID)
+			}
 		}
 	})
 }
