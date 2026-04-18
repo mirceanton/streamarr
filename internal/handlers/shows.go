@@ -36,6 +36,7 @@ func ShowsHandler(w http.ResponseWriter, r *http.Request) {
 		s.Episodes = append(s.Episodes, f)
 		if f.NeedsAttention {
 			s.NeedsAttention = true
+			s.AttentionEpisodeCount++
 		}
 	}
 

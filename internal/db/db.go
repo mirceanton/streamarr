@@ -136,6 +136,15 @@ func migrate() error {
 		}
 	}
 
+	// Add attention_reasons column to media_files if it doesn't exist (idempotent)
+	var attentionReasonsColCount int
+	DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('media_files') WHERE name = 'attention_reasons'`).Scan(&attentionReasonsColCount)
+	if attentionReasonsColCount == 0 {
+		if _, err := DB.Exec(`ALTER TABLE media_files ADD COLUMN attention_reasons TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("add attention_reasons column: %w", err)
+		}
+	}
+
 	return nil
 }
 

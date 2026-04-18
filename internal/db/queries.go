@@ -123,7 +123,7 @@ func GetMediaFileScanTimes(libraryRootID int64) (map[string]time.Time, error) {
 
 func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]models.MediaFile, error) {
 	query := `SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
-		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention,
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons,
 		(SELECT COUNT(*) FROM audio_tracks WHERE media_file_id = mf.id) as audio_count,
 		(SELECT COUNT(*) FROM subtitle_tracks WHERE media_file_id = mf.id) as sub_count,
 		(SELECT COUNT(*) FROM external_subtitle_files WHERE media_file_id = mf.id) as ext_sub_count,
@@ -147,7 +147,7 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 		var f models.MediaFile
 		var audioCount, subCount, extSubCount int
 		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
-			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention,
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
 			&audioCount, &subCount, &extSubCount, &f.LibraryType); err != nil {
 			return nil, err
 		}
@@ -163,11 +163,11 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 func GetMediaFile(id int64) (*models.MediaFile, error) {
 	var f models.MediaFile
 	err := DB.QueryRow(`SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
-		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, lr.type
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons, lr.type
 		FROM media_files mf JOIN library_roots lr ON mf.library_root_id = lr.id
 		WHERE mf.id = ?`, id).
 		Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
-			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.LibraryType)
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons, &f.LibraryType)
 	if err != nil {
 		return nil, err
 	}
@@ -216,8 +216,8 @@ func GetMediaFileByPath(path string) (*models.MediaFile, error) {
 }
 
 func UpsertMediaFile(f *models.MediaFile) (int64, error) {
-	res, err := DB.Exec(`INSERT INTO media_files (library_root_id, path, filename, title, year, season, episode, size_bytes, container, scanned_at, needs_attention)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	res, err := DB.Exec(`INSERT INTO media_files (library_root_id, path, filename, title, year, season, episode, size_bytes, container, scanned_at, needs_attention, attention_reasons)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(path) DO UPDATE SET
 			filename = excluded.filename,
 			title = excluded.title,
@@ -227,9 +227,10 @@ func UpsertMediaFile(f *models.MediaFile) (int64, error) {
 			size_bytes = excluded.size_bytes,
 			container = excluded.container,
 			scanned_at = excluded.scanned_at,
-			needs_attention = excluded.needs_attention`,
+			needs_attention = excluded.needs_attention,
+			attention_reasons = excluded.attention_reasons`,
 		f.LibraryRootID, f.Path, f.Filename, f.Title, f.Year, f.Season, f.Episode,
-		f.SizeBytes, f.Container, f.ScannedAt, f.NeedsAttention)
+		f.SizeBytes, f.Container, f.ScannedAt, f.NeedsAttention, f.AttentionReasons)
 	if err != nil {
 		return 0, err
 	}
