@@ -244,6 +244,17 @@
                         </form>
                         {{end}}
                         {{end}}
+                        <div class="d-inline-flex align-items-center gap-1 me-1">
+                            <input type="text" id="set-lang-a-{{.StreamIndex}}"
+                                   class="form-control form-control-sm" placeholder="eng"
+                                   maxlength="8" style="width:4.5rem;"
+                                   value="{{if and .Language (ne .Language "und")}}{{.Language}}{{end}}">
+                            <button class="btn btn-outline-warning btn-sm"
+                                    title="Set language for this audio track"
+                                    onclick="addSetLangOp({{.StreamIndex}}, document.getElementById('set-lang-a-{{.StreamIndex}}').value, 'Set audio lang: stream {{.StreamIndex}}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </div>
                         {{if gt $audioCount 1}}
                         <button class="btn btn-outline-danger btn-sm" onclick="addRemoveOp('remove_audio', {{.StreamIndex}}, 'Remove audio: {{codecName .Codec}} ({{langName .Language}})')">
                             <i class="bi bi-trash3"></i> Remove
@@ -320,6 +331,17 @@
                         <button class="btn btn-outline-sa btn-sm me-1" onclick="addExtractOp({{.StreamIndex}}, 'Extract sub: {{codecName .Codec}} ({{langName .Language}})')">
                             <i class="bi bi-box-arrow-up-right"></i> Extract
                         </button>
+                        <div class="d-inline-flex align-items-center gap-1 me-1">
+                            <input type="text" id="set-lang-s-{{.StreamIndex}}"
+                                   class="form-control form-control-sm" placeholder="eng"
+                                   maxlength="8" style="width:4.5rem;"
+                                   value="{{if and .Language (ne .Language "und")}}{{.Language}}{{end}}">
+                            <button class="btn btn-outline-warning btn-sm"
+                                    title="Set language for this subtitle track"
+                                    onclick="addSetLangOp({{.StreamIndex}}, document.getElementById('set-lang-s-{{.StreamIndex}}').value, 'Set sub lang: stream {{.StreamIndex}}')">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </div>
                         <button class="btn btn-outline-danger btn-sm" onclick="addRemoveOp('remove_subtitle', {{.StreamIndex}}, 'Remove sub: {{codecName .Codec}} ({{langName .Language}})')">
                             <i class="bi bi-trash3"></i> Remove
                         </button>
@@ -440,6 +462,15 @@ function addEmbedOpFromBtn(btn) {
     renderOps();
 }
 
+function addSetLangOp(streamIndex, lang, label) {
+    lang = lang.trim().toLowerCase();
+    if (!lang) return;
+    const existing = operations.find(op => op.type === 'set_language' && op.stream_index === streamIndex);
+    if (existing) { existing.language = lang; renderOps(); return; }
+    operations.push({ type: 'set_language', stream_index: streamIndex, language: lang });
+    renderOps();
+}
+
 function addDeleteExternalSubOp(btn) {
     const path = btn.dataset.path;
     if (operations.find(op => (op.type === 'delete_external_subtitle' || op.type === 'embed_subtitle') && op.source_path === path)) return;
@@ -520,6 +551,9 @@ function renderOps() {
         } else if (op.type === 'delete_external_subtitle') {
             icon = 'trash3';
             label = 'delete external subtitle: ' + (op.source_path || '').split('/').pop();
+        } else if (op.type === 'set_language') {
+            icon = 'pencil';
+            label = 'set language: stream ' + op.stream_index + ' \u2192 ' + op.language;
         } else {
             icon = op.type.includes('remove') ? 'trash3' : 'box-arrow-up-right';
             label = op.type.replace(/_/g, ' ') + ' (stream ' + op.stream_index + ')';

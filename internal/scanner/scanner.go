@@ -356,13 +356,14 @@ func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTr
 	for _, l := range preferredLangs {
 		preferred[strings.ToLower(l)] = true
 	}
-	preferred["und"] = true
-	preferred[""] = true
 
+	var audioUnknown []string
 	var audioBad []string
 	for _, a := range audio {
 		lang := strings.ToLower(a.Language)
-		if !preferred[lang] {
+		if lang == "und" || lang == "" {
+			audioUnknown = append(audioUnknown, fmt.Sprintf("stream %d", a.StreamIndex))
+		} else if !preferred[lang] {
 			audioBad = append(audioBad, fmt.Sprintf("stream %d (%s)", a.StreamIndex, a.Language))
 		}
 	}
@@ -371,15 +372,23 @@ func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTr
 	for _, l := range preferredLangs {
 		subPreferred[strings.ToLower(l)] = true
 	}
-	subPreferred[""] = true
 
+	var subUnknown []string
 	var subBad []string
 	var subFormatBad []string
 	for _, s := range subs {
 		lang := strings.ToLower(s.Language)
-		if !subPreferred[lang] && lang != "und" {
+		if lang == "und" || lang == "" {
+			subUnknown = append(subUnknown, fmt.Sprintf("stream %d", s.StreamIndex))
+			if preferredSubtitleFormat != "" {
+				format := subtitleCodecToFormat(s.Codec)
+				if format != strings.ToLower(preferredSubtitleFormat) {
+					subFormatBad = append(subFormatBad, fmt.Sprintf("stream %d (%s, got %s)", s.StreamIndex, s.Language, format))
+				}
+			}
+		} else if !subPreferred[lang] {
 			subBad = append(subBad, fmt.Sprintf("stream %d (%s)", s.StreamIndex, s.Language))
-		} else if preferredSubtitleFormat != "" && (subPreferred[lang] || lang == "und") {
+		} else if preferredSubtitleFormat != "" && subPreferred[lang] {
 			format := subtitleCodecToFormat(s.Codec)
 			if format != strings.ToLower(preferredSubtitleFormat) {
 				subFormatBad = append(subFormatBad, fmt.Sprintf("stream %d (%s, got %s)", s.StreamIndex, s.Language, format))
@@ -398,13 +407,19 @@ func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTr
 		}
 	}
 
-	if len(audioBad) == 0 && len(subBad) == 0 && len(subFormatBad) == 0 {
+	if len(audioUnknown) == 0 && len(audioBad) == 0 && len(subUnknown) == 0 && len(subBad) == 0 && len(subFormatBad) == 0 {
 		return false, ""
 	}
 
 	var parts []string
+	if len(audioUnknown) > 0 {
+		parts = append(parts, "Unknown language audio: "+strings.Join(audioUnknown, ", "))
+	}
 	if len(audioBad) > 0 {
 		parts = append(parts, "Non-preferred audio: "+strings.Join(audioBad, ", "))
+	}
+	if len(subUnknown) > 0 {
+		parts = append(parts, "Unknown language subtitles: "+strings.Join(subUnknown, ", "))
 	}
 	if len(subBad) > 0 {
 		parts = append(parts, "Non-preferred subtitles: "+strings.Join(subBad, ", "))
