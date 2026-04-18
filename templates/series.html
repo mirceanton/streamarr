@@ -205,6 +205,48 @@
                         <div id="audioLangCheckboxes" class="d-flex flex-wrap gap-2"></div>
                         <div id="noAudioLangs" class="text-muted-sa" style="display:none;font-size:0.85rem;">No audio tracks found across episodes.</div>
                     </div>
+                    <div class="mb-4" id="setAudioLangSection" style="display:none;">
+                        <h6 class="mb-2"><i class="bi bi-pencil-square me-2"></i>Set Audio Language for Undefined Tracks</h6>
+                        <p class="text-muted-sa" style="font-size:0.8rem;">
+                            Set the language tag on undefined audio tracks. Only applies to episodes with
+                            <strong>exactly one audio track</strong> whose language is undefined. Other episodes will be skipped.
+                        </p>
+                        <div class="d-flex align-items-center gap-2">
+                            <select id="setAudioLangSelect" class="form-select form-select-sm" style="max-width:260px;background:#313244;color:#cdd6f4;border-color:#45475a;" onchange="updateBulkPreview()">
+                                <option value="">— don't set —</option>
+                                <option value="eng">English (eng)</option>
+                                <option value="fra">French (fra)</option>
+                                <option value="deu">German (deu)</option>
+                                <option value="spa">Spanish (spa)</option>
+                                <option value="ita">Italian (ita)</option>
+                                <option value="por">Portuguese (por)</option>
+                                <option value="rus">Russian (rus)</option>
+                                <option value="jpn">Japanese (jpn)</option>
+                                <option value="kor">Korean (kor)</option>
+                                <option value="zho">Chinese (zho)</option>
+                                <option value="ara">Arabic (ara)</option>
+                                <option value="hin">Hindi (hin)</option>
+                                <option value="tur">Turkish (tur)</option>
+                                <option value="pol">Polish (pol)</option>
+                                <option value="nld">Dutch (nld)</option>
+                                <option value="swe">Swedish (swe)</option>
+                                <option value="nor">Norwegian (nor)</option>
+                                <option value="dan">Danish (dan)</option>
+                                <option value="fin">Finnish (fin)</option>
+                                <option value="ces">Czech (ces)</option>
+                                <option value="hun">Hungarian (hun)</option>
+                                <option value="ron">Romanian (ron)</option>
+                                <option value="bul">Bulgarian (bul)</option>
+                                <option value="hrv">Croatian (hrv)</option>
+                                <option value="srp">Serbian (srp)</option>
+                                <option value="ukr">Ukrainian (ukr)</option>
+                                <option value="ell">Greek (ell)</option>
+                                <option value="heb">Hebrew (heb)</option>
+                                <option value="tha">Thai (tha)</option>
+                                <option value="vie">Vietnamese (vie)</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="mb-3">
                         <h6 class="mb-2"><i class="bi bi-badge-cc me-2"></i>Embedded Subtitle Tracks</h6>
                         <p class="text-muted-sa" style="font-size:0.8rem;">Choose which subtitle tracks to keep and which to extract as sidecar files before removing. Each row is a distinct language + format combination.</p>
@@ -309,8 +351,13 @@ function renderBulkEditContent(data) {
             label.innerHTML = `<input type="checkbox" class="audio-lang-cb" value="${lang}" checked style="margin:0;"> ${langLabel(lang)}`;
             audioBox.appendChild(label);
         });
+        // Show the set-language section only when there are undefined audio tracks
+        const hasUnd = data.audio_languages.includes('und');
+        document.getElementById('setAudioLangSection').style.display = hasUnd ? '' : 'none';
+        document.getElementById('setAudioLangSelect').value = '';
     } else {
         document.getElementById('noAudioLangs').style.display = '';
+        document.getElementById('setAudioLangSection').style.display = 'none';
     }
 
     // Embedded subtitle tracks — each row is a (language, format/codec) pair
@@ -483,6 +530,8 @@ function updateBulkPreview() {
     const extractSubVals = [...document.querySelectorAll('.sub-extract-cb:checked')].map(c => c.value);
     const embedExtSubVals = [...document.querySelectorAll('.ext-sub-embed-cb:checked')].map(c => c.value);
     const deleteExtSubVals = [...document.querySelectorAll('.ext-sub-delete-cb:checked')].map(c => c.value);
+    const setAudioLangEl = document.getElementById('setAudioLangSelect');
+    const setAudioLang = setAudioLangEl ? setAudioLangEl.value : '';
 
     const allAudio = [...document.querySelectorAll('.audio-lang-cb')].map(c => c.value);
     const allSubVals = [...document.querySelectorAll('.sub-keep-cb')].map(c => c.value);
@@ -491,6 +540,9 @@ function updateBulkPreview() {
     const removeSubVals = allSubVals.filter(v => !keepSubVals.has(v));
 
     let html = '<strong style="color:#cba6f7;">Preview of operations per episode:</strong><ul class="mb-0 mt-1" style="padding-left:1.2rem;">';
+    if (setAudioLang) {
+        html += `<li>Set audio language to <strong>${langLabel(setAudioLang)}</strong> (episodes with a single undefined audio track only)</li>`;
+    }
     if (removeAudio.length > 0) {
         html += `<li>Remove audio tracks in: <strong>${removeAudio.map(langLabel).join(', ')}</strong></li>`;
     } else {
@@ -549,6 +601,8 @@ function applyBulkEdit() {
     const extractSubTracks = [...document.querySelectorAll('.sub-extract-cb:checked')].map(c => parseTrackValue(c.value));
     const embedExtSubTracks = [...document.querySelectorAll('.ext-sub-embed-cb:checked')].map(c => parseTrackValue(c.value));
     const deleteExtSubTracks = [...document.querySelectorAll('.ext-sub-delete-cb:checked')].map(c => parseTrackValue(c.value));
+    const setAudioLangEl = document.getElementById('setAudioLangSelect');
+    const setAudioLang = setAudioLangEl ? setAudioLangEl.value : '';
 
     const allAudio = [...document.querySelectorAll('.audio-lang-cb')].map(c => c.value);
     const allSubVals = [...document.querySelectorAll('.sub-keep-cb')].map(c => c.value);
@@ -556,13 +610,14 @@ function applyBulkEdit() {
     const removeAudio = allAudio.filter(l => !keepAudio.includes(l));
     const removeSubTracks = allSubVals.filter(v => !keepSubVals.has(v)).map(parseTrackValue);
 
-    if (removeAudio.length === 0 && removeSubTracks.length === 0 && extractSubTracks.length === 0 && embedExtSubTracks.length === 0 && deleteExtSubTracks.length === 0) {
-        alert('No operations selected. Please uncheck some languages or select subtitles to extract/embed/delete.');
+    if (!setAudioLang && removeAudio.length === 0 && removeSubTracks.length === 0 && extractSubTracks.length === 0 && embedExtSubTracks.length === 0 && deleteExtSubTracks.length === 0) {
+        alert('No operations selected. Please uncheck some languages, select subtitles to extract/embed/delete, or choose a language to set for undefined audio tracks.');
         return;
     }
 
     const episodeCount = bulkTracksData ? bulkTracksData.episode_count : '?';
     if (!confirm(`Apply bulk operations to ${episodeCount} episode(s) in "${bulkSeriesTitle}"?\n\nThis will create jobs to:\n` +
+        (setAudioLang ? `• Set audio language to: ${setAudioLang} (single undefined track only)\n` : '') +
         (removeAudio.length > 0 ? `• Remove audio tracks: ${removeAudio.join(', ')}\n` : '') +
         (extractSubTracks.length > 0 ? `• Extract subtitle tracks: ${extractSubTracks.map(t => t.language + ':' + t.format).join(', ')}\n` : '') +
         (removeSubTracks.length > 0 ? `• Remove subtitle tracks: ${removeSubTracks.map(t => t.language + ':' + t.format).join(', ')}\n` : '') +
@@ -587,6 +642,7 @@ function applyBulkEdit() {
             extract_subtitle_tracks: extractSubTracks,
             embed_external_subtitle_tracks: embedExtSubTracks,
             delete_external_subtitle_tracks: deleteExtSubTracks,
+            set_audio_language: setAudioLang,
         })
     })
     .then(r => {
