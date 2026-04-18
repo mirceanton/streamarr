@@ -347,11 +347,51 @@ function addEmbedOpFromBtn(btn) {
     renderOps();
 }
 
+function syncTrackStates() {
+    document.querySelectorAll('.audio-select').forEach(cb => {
+        const streamIndex = parseInt(cb.dataset.streamIndex);
+        const isQueued = operations.some(op => op.type === 'remove_audio' && op.stream_index === streamIndex);
+        const row = cb.closest('tr');
+        if (isQueued) {
+            row.classList.add('track-queued');
+            cb.checked = false;
+            cb.disabled = true;
+            row.querySelectorAll('button').forEach(el => el.disabled = true);
+        } else {
+            row.classList.remove('track-queued');
+            cb.disabled = false;
+            row.querySelectorAll('button').forEach(el => el.disabled = false);
+        }
+    });
+
+    document.querySelectorAll('.subtitle-select').forEach(cb => {
+        const streamIndex = parseInt(cb.dataset.streamIndex);
+        const isQueued = operations.some(op =>
+            (op.type === 'remove_subtitle' || op.type === 'extract_subtitle') && op.stream_index === streamIndex
+        );
+        const row = cb.closest('tr');
+        if (isQueued) {
+            row.classList.add('track-queued');
+            cb.checked = false;
+            cb.disabled = true;
+            row.querySelectorAll('button').forEach(el => el.disabled = true);
+        } else {
+            row.classList.remove('track-queued');
+            cb.disabled = false;
+            row.querySelectorAll('button').forEach(el => el.disabled = false);
+        }
+    });
+
+    updateSelectAll('audio');
+    updateSelectAll('subtitle');
+}
+
 function renderOps() {
     const panel = document.getElementById('opsPanel');
     const list = document.getElementById('opsList');
     if (operations.length === 0) {
         panel.style.display = 'none';
+        syncTrackStates();
         return;
     }
     panel.style.display = 'block';
@@ -371,6 +411,7 @@ function renderOps() {
             '<button class="btn btn-outline-secondary btn-sm" style="padding:0.1rem 0.3rem;font-size:0.7rem;" onclick="removeOp(' + i + ')"><i class="bi bi-x"></i></button>';
         list.appendChild(div);
     });
+    syncTrackStates();
 }
 
 function removeOp(index) {
@@ -384,12 +425,12 @@ function clearOps() {
 }
 
 function toggleSelectAll(type, checked) {
-    document.querySelectorAll('.' + type + '-select').forEach(cb => cb.checked = checked);
+    document.querySelectorAll('.' + type + '-select:not(:disabled)').forEach(cb => cb.checked = checked);
 }
 
 function updateSelectAll(type) {
-    const checkboxes = Array.from(document.querySelectorAll('.' + type + '-select'));
-    const allChecked = checkboxes.every(cb => cb.checked);
+    const checkboxes = Array.from(document.querySelectorAll('.' + type + '-select:not(:disabled)'));
+    const allChecked = checkboxes.length > 0 && checkboxes.every(cb => cb.checked);
     const someChecked = checkboxes.some(cb => cb.checked);
     const selectAll = document.getElementById(type === 'audio' ? 'audioSelectAll' : 'subSelectAll');
     if (selectAll) {
