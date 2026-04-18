@@ -85,6 +85,14 @@ func CreateJobHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate: set_language ops must specify a language
+	for _, op := range ops {
+		if op.Type == "set_language" && strings.TrimSpace(op.Language) == "" {
+			http.Error(w, "set_language operation requires a language value", http.StatusBadRequest)
+			return
+		}
+	}
+
 	// Fill in output paths for extract operations
 	for i, op := range ops {
 		if op.Type == "extract_subtitle" && op.OutputPath == "" {

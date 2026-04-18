@@ -89,6 +89,34 @@ func processJob(jobID int64) {
 		return
 	}
 
+	// Set language metadata on streams
+	var setLangOps []models.Operation
+	for _, op := range ops {
+		if op.Type == "set_language" {
+			setLangOps = append(setLangOps, op)
+		}
+	}
+	if len(setLangOps) > 0 {
+		cmd, err := buildSetLanguageCommand(mf.Path, setLangOps)
+		if err != nil {
+			failJob(jobID, fmt.Sprintf("build set-language command: %v", err))
+			return
+		}
+		db.UpdateJobCommand(jobID, strings.Join(cmd.Args, " "))
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			failJob(jobID, fmt.Sprintf("ffmpeg set-language failed: %v\nOutput: %s", err, string(output)))
+			tmpPath := mf.Path + ".tmp" + filepath.Ext(mf.Path)
+			os.Remove(tmpPath)
+			return
+		}
+		tmpPath := mf.Path + ".tmp" + filepath.Ext(mf.Path)
+		if err := os.Rename(tmpPath, mf.Path); err != nil {
+			failJob(jobID, fmt.Sprintf("rename temp file after set-language: %v", err))
+			return
+		}
+	}
+
 	// Delete external subtitle files
 	for _, op := range ops {
 		if op.Type == "delete_external_subtitle" {
@@ -328,6 +356,19 @@ func buildRemoveCommand(inputPath string, removeIndices []int) (*exec.Cmd, error
 
 	cmd := exec.Command("ffmpeg", args...)
 	return cmd, nil
+}
+
+func buildSetLanguageCommand(inputPath string, ops []models.Operation) (*exec.Cmd, error) {
+	args := []string{"-y", "-i", inputPath, "-map", "0", "-c", "copy"}
+	for _, op := range ops {
+		args = append(args,
+			fmt.Sprintf("-metadata:s:%d", op.StreamIndex),
+			fmt.Sprintf("language=%s", op.Language),
+		)
+	}
+	tmpPath := inputPath + ".tmp" + filepath.Ext(inputPath)
+	args = append(args, tmpPath)
+	return exec.Command("ffmpeg", args...), nil
 }
 
 func failJob(jobID int64, errMsg string) {
