@@ -79,7 +79,9 @@
                             <th class="sortable" onclick="sortTable(this)">Episode <i class="sort-icon bi bi-arrow-down-up"></i></th>
                             <th class="sortable" onclick="sortTable(this)">File <i class="sort-icon bi bi-arrow-down-up"></i></th>
                             <th class="sortable" onclick="sortTable(this)">Size <i class="sort-icon bi bi-arrow-down-up"></i></th>
-                            <th class="sortable" onclick="sortTable(this)">Streams <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                            <th class="sortable" onclick="sortTable(this)">Audio <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                            <th class="sortable" onclick="sortTable(this)">Subs <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                            <th class="sortable" onclick="sortTable(this)">Ext. Subs <i class="sort-icon bi bi-arrow-down-up"></i></th>
                             <th class="sortable" onclick="sortTable(this)">Status <i class="sort-icon bi bi-arrow-down-up"></i></th>
                         </tr>
                     </thead>
@@ -91,7 +93,9 @@
                             </td>
                             <td class="text-muted-sa" style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{.Filename}}">{{.Filename}}</td>
                             <td class="text-muted-sa" data-sort-value="{{.SizeBytes}}">{{formatSize .SizeBytes}}</td>
-                            <td class="stream-count" data-sort-value="{{len .AudioTracks}}">{{len .AudioTracks}} audio &middot; {{len .SubtitleTracks}} subs</td>
+                            <td class="stream-count" data-sort-value="{{len .AudioTracks}}">{{len .AudioTracks}}</td>
+                            <td class="stream-count" data-sort-value="{{len .SubtitleTracks}}">{{len .SubtitleTracks}}</td>
+                            <td class="stream-count" data-sort-value="{{len .ExternalSubtitleFiles}}">{{len .ExternalSubtitleFiles}}</td>
                             <td data-sort-value="{{if .NeedsAttention}}1{{else}}0{{end}}">
                                 {{if .NeedsAttention}}
                                 <span class="badge badge-attention">Needs Attention</span>
