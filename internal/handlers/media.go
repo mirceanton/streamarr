@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mirceanton/streamarr/internal/db"
@@ -23,11 +24,13 @@ func MediaDetailHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hasPendingJob, _ := db.HasPendingJob(id)
+	globalLangs, _ := db.GetPreferredLanguages()
 
 	data := map[string]interface{}{
-		"Page":          "media",
-		"File":          mf,
-		"HasPendingJob": hasPendingJob,
+		"Page":            "media",
+		"File":            mf,
+		"HasPendingJob":   hasPendingJob,
+		"GlobalLanguages": strings.Join(globalLangs, ", "),
 	}
 	render(w, "media_detail.html", data)
 }

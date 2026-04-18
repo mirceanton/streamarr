@@ -22,11 +22,49 @@
             <i class="bi bi-chevron-right me-2 series-chevron"></i>
             <strong>{{.Title}}</strong>
             <span class="text-muted-sa ms-2">({{len .Episodes}} episodes)</span>
+            {{if .LanguageOverride}}
+            <span class="badge bg-secondary ms-2" style="font-size:0.7rem;" title="Language override set">
+                <i class="bi bi-translate me-1"></i>{{join .LanguageOverride ", "}}
+            </span>
+            {{end}}
         </div>
-        <div>
+        <div class="d-flex gap-2 align-items-center" onclick="event.stopPropagation()">
             {{if .NeedsAttention}}
             <span class="badge badge-attention">Needs Attention</span>
             {{end}}
+            <button class="btn btn-outline-secondary btn-sm" style="font-size:0.75rem;"
+                title="Set language preference" onclick="toggleLangForm(this)">
+                <i class="bi bi-translate"></i>
+            </button>
+        </div>
+    </div>
+    <div class="series-lang-form" style="display:none;">
+        <div class="card" style="border-top:none;border-radius:0 0 6px 6px;">
+            <div class="card-body py-2">
+                <form hx-post="/api/overrides/series" hx-swap="none" class="d-flex gap-2 align-items-end">
+                    <input type="hidden" name="library_root_id" value="{{.LibraryRootID}}">
+                    <input type="hidden" name="title" value="{{.Title}}">
+                    <div class="flex-grow-1">
+                        <label class="form-label mb-1" style="font-size:0.8rem;">
+                            Language override for <strong>{{.Title}}</strong>
+                            {{if not .LanguageOverride}}<span class="text-muted-sa">(global: {{$.GlobalLanguages}})</span>{{end}}
+                        </label>
+                        <input type="text" class="form-control form-control-sm" name="languages"
+                            placeholder="e.g. eng, fra"
+                            value="{{join .LanguageOverride ", "}}">
+                    </div>
+                    <button type="submit" class="btn btn-sa btn-sm">Save</button>
+                    {{if .LanguageOverride}}
+                    <button type="button" class="btn btn-outline-danger btn-sm"
+                        hx-post="/api/overrides/series/delete"
+                        hx-include="closest form"
+                        hx-swap="none"
+                        hx-confirm="Clear language override for {{.Title}} and use the global setting?">
+                        Clear
+                    </button>
+                    {{end}}
+                </form>
+            </div>
         </div>
     </div>
     <div class="series-episodes">
@@ -79,7 +117,8 @@
 {{define "scripts"}}
 <script>
 function toggleSeries(el) {
-    const episodes = el.nextElementSibling;
+    const langForm = el.nextElementSibling;
+    const episodes = langForm.nextElementSibling;
     const chevron = el.querySelector('.series-chevron');
     episodes.classList.toggle('show');
     if (episodes.classList.contains('show')) {
@@ -88,7 +127,14 @@ function toggleSeries(el) {
     } else {
         chevron.classList.remove('bi-chevron-down');
         chevron.classList.add('bi-chevron-right');
+        langForm.style.display = 'none';
     }
+}
+
+function toggleLangForm(btn) {
+    const seriesGroup = btn.closest('.series-group');
+    const langForm = seriesGroup.querySelector('.series-lang-form');
+    langForm.style.display = langForm.style.display === 'none' ? 'block' : 'none';
 }
 </script>
 {{end}}

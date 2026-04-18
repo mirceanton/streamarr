@@ -62,6 +62,11 @@ func main() {
 	r.Post("/api/settings/libraries", handlers.AddLibraryHandler)
 	r.Delete("/api/settings/libraries/{id}", handlers.DeleteLibraryHandler)
 	r.Post("/api/settings/languages", handlers.UpdateLanguagesHandler)
+	r.Post("/api/overrides/movie/{id}", handlers.SetMovieLanguageOverrideHandler)
+	r.Delete("/api/overrides/movie/{id}", handlers.DeleteMovieLanguageOverrideHandler)
+	r.Post("/api/overrides/series", handlers.SetSeriesLanguageOverrideHandler)
+	r.Delete("/api/overrides/series", handlers.DeleteSeriesLanguageOverrideHandler)
+	r.Post("/api/overrides/series/delete", handlers.DeleteSeriesLanguageOverridePostHandler)
 
 	log.Printf("StreamArr starting on port %s", port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), r); err != nil {

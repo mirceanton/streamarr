@@ -90,6 +90,14 @@ func migrate() error {
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS language_overrides (
+			id INTEGER PRIMARY KEY,
+			library_root_id INTEGER NOT NULL REFERENCES library_roots(id) ON DELETE CASCADE,
+			item_key TEXT NOT NULL,
+			item_type TEXT NOT NULL CHECK(item_type IN ('movie', 'series')),
+			preferred_languages TEXT NOT NULL,
+			UNIQUE(library_root_id, item_key, item_type)
+		)`,
 	}
 
 	for _, m := range migrations {

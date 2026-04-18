@@ -27,9 +27,10 @@ type MediaFile struct {
 	NeedsAttention bool
 
 	// Joined fields (not always populated)
-	AudioTracks    []AudioTrack
-	SubtitleTracks []SubtitleTrack
-	LibraryType    string // from library_roots.type
+	AudioTracks      []AudioTrack
+	SubtitleTracks   []SubtitleTrack
+	LibraryType      string   // from library_roots.type
+	LanguageOverride []string // nil means use global setting
 }
 
 // AudioTrack represents an audio stream in a media file.
@@ -84,10 +85,12 @@ type Operation struct {
 
 // Series groups episodes for the shows view.
 type Series struct {
-	Title          string
-	Path           string
-	Episodes       []MediaFile
-	NeedsAttention bool
+	Title            string
+	Path             string
+	LibraryRootID    int64
+	Episodes         []MediaFile
+	NeedsAttention   bool
+	LanguageOverride []string // nil means use global setting
 }
 
 // ScanStatus tracks whether a scan is in progress.
