@@ -240,3 +240,116 @@ func parseLangs(input string) []string {
 	}
 	return langs
 }
+
+func SetMovieSubtitleFormatOverrideHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	mf, err := db.GetMediaFile(id)
+	if err != nil {
+		http.Error(w, "Media file not found", http.StatusNotFound)
+		return
+	}
+
+	format := strings.TrimSpace(strings.ToLower(r.FormValue("subtitle_format")))
+	if err := db.SetSubtitleFormatOverride(mf.LibraryRootID, mf.Path, "movie", format); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/media/"+idStr)
+	w.WriteHeader(http.StatusOK)
+}
+
+func DeleteMovieSubtitleFormatOverrideHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	mf, err := db.GetMediaFile(id)
+	if err != nil {
+		http.Error(w, "Media file not found", http.StatusNotFound)
+		return
+	}
+
+	if err := db.DeleteSubtitleFormatOverride(mf.LibraryRootID, mf.Path, "movie"); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/media/"+idStr)
+	w.WriteHeader(http.StatusOK)
+}
+
+func SetSeriesSubtitleFormatOverrideHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	libraryRootIDStr := r.FormValue("library_root_id")
+	libraryRootID, err := strconv.ParseInt(libraryRootIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid library_root_id", http.StatusBadRequest)
+		return
+	}
+
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
+		http.Error(w, "title is required", http.StatusBadRequest)
+		return
+	}
+
+	format := strings.TrimSpace(strings.ToLower(r.FormValue("subtitle_format")))
+	if err := db.SetSubtitleFormatOverride(libraryRootID, title, "series", format); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/shows")
+	w.WriteHeader(http.StatusOK)
+}
+
+func DeleteSeriesSubtitleFormatOverrideHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	libraryRootIDStr := r.FormValue("library_root_id")
+	libraryRootID, err := strconv.ParseInt(libraryRootIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid library_root_id", http.StatusBadRequest)
+		return
+	}
+
+	title := strings.TrimSpace(r.FormValue("title"))
+	if title == "" {
+		http.Error(w, "title is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.DeleteSubtitleFormatOverride(libraryRootID, title, "series"); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/shows")
+	w.WriteHeader(http.StatusOK)
+}
+
+func DeleteSeriesSubtitleFormatOverridePostHandler(w http.ResponseWriter, r *http.Request) {
+	DeleteSeriesSubtitleFormatOverrideHandler(w, r)
+}

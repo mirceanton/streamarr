@@ -23,6 +23,10 @@
             onclick="toggleLangForm()">
             <i class="bi bi-translate"></i>
         </button>
+        <button class="btn btn-outline-secondary btn-sm" title="Set subtitle format preference"
+            onclick="toggleSubtitleFormatForm()">
+            <i class="bi bi-badge-cc"></i>
+        </button>
     </div>
 </div>
 
@@ -56,6 +60,41 @@
     </div>
 </div>
 
+<div id="subtitleFormatFormWrapper" style="display:none;" class="mb-3">
+    <div class="card">
+        <div class="card-body py-2">
+            <form hx-post="/api/overrides/series/subtitle-format" hx-swap="none" class="d-flex gap-2 align-items-end">
+                <input type="hidden" name="library_root_id" value="{{.LibraryRootID}}">
+                <input type="hidden" name="title" value="{{.SeriesTitle}}">
+                <div class="flex-grow-1">
+                    <label class="form-label mb-1" style="font-size:0.8rem;">
+                        Subtitle format override for <strong>{{.SeriesTitle}}</strong>
+                        {{if not .SubtitleFormatOverride}}<span class="text-muted-sa">(global: {{if $.GlobalSubtitleFormat}}{{$.GlobalSubtitleFormat}}{{else}}any{{end}})</span>{{end}}
+                    </label>
+                    <select class="form-select form-select-sm" name="subtitle_format">
+                        <option value="" {{if eq .SubtitleFormatOverride ""}}selected{{end}}>Any (no preference)</option>
+                        <option value="srt" {{if eq .SubtitleFormatOverride "srt"}}selected{{end}}>SRT</option>
+                        <option value="ass" {{if eq .SubtitleFormatOverride "ass"}}selected{{end}}>ASS/SSA</option>
+                        <option value="vtt" {{if eq .SubtitleFormatOverride "vtt"}}selected{{end}}>VTT</option>
+                        <option value="pgs" {{if eq .SubtitleFormatOverride "pgs"}}selected{{end}}>PGS</option>
+                        <option value="dvd" {{if eq .SubtitleFormatOverride "dvd"}}selected{{end}}>DVD</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-sa btn-sm">Save</button>
+                {{if .SubtitleFormatOverride}}
+                <button type="button" class="btn btn-outline-danger btn-sm"
+                    hx-post="/api/overrides/series/subtitle-format/delete"
+                    hx-include="closest form"
+                    hx-swap="none"
+                    hx-confirm="Clear subtitle format override for {{.SeriesTitle}} and use the global setting?">
+                    Clear
+                </button>
+                {{end}}
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="filter-bar">
     <input type="search" class="form-control form-control-sm" id="episodeSearch"
         placeholder="Search by episode or filename..." oninput="filterEpisodes(this.value)"
@@ -64,6 +103,11 @@
         {{if .LanguageOverride}}
         <span class="badge bg-secondary" style="font-size:0.7rem;" title="Language override set">
             <i class="bi bi-translate me-1"></i>{{join .LanguageOverride ", "}}
+        </span>
+        {{end}}
+        {{if .SubtitleFormatOverride}}
+        <span class="badge bg-secondary" style="font-size:0.7rem;" title="Subtitle format override set">
+            <i class="bi bi-badge-cc me-1"></i>{{.SubtitleFormatOverride}}
         </span>
         {{end}}
         <div class="form-check form-switch mb-0">
@@ -189,6 +233,11 @@
 <script>
 function toggleLangForm() {
     const w = document.getElementById('langFormWrapper');
+    w.style.display = w.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleSubtitleFormatForm() {
+    const w = document.getElementById('subtitleFormatFormWrapper');
     w.style.display = w.style.display === 'none' ? 'block' : 'none';
 }
 

@@ -106,6 +106,74 @@
     </div>
 </div>
 
+<!-- Subtitle Format Preference -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-badge-cc me-2"></i>Subtitle Format Preference</div>
+    <div class="card-body">
+        {{if eq .LibraryType "movies"}}
+        {{if .SubtitleFormatOverride}}
+        <div class="mb-3">
+            <small class="text-muted-sa">Override (this movie only)</small>
+            <div><strong>{{.SubtitleFormatOverride}}</strong></div>
+        </div>
+        <form hx-post="/api/overrides/movie/{{.ID}}/subtitle-format" hx-swap="none" class="d-flex gap-2 align-items-end mb-2">
+            <div class="flex-grow-1">
+                <label class="form-label mb-1" style="font-size:0.85rem;">Update override</label>
+                <select class="form-select form-select-sm" name="subtitle_format">
+                    <option value="" {{if eq .SubtitleFormatOverride ""}}selected{{end}}>Any (no preference)</option>
+                    <option value="srt" {{if eq .SubtitleFormatOverride "srt"}}selected{{end}}>SRT</option>
+                    <option value="ass" {{if eq .SubtitleFormatOverride "ass"}}selected{{end}}>ASS/SSA</option>
+                    <option value="vtt" {{if eq .SubtitleFormatOverride "vtt"}}selected{{end}}>VTT</option>
+                    <option value="pgs" {{if eq .SubtitleFormatOverride "pgs"}}selected{{end}}>PGS</option>
+                    <option value="dvd" {{if eq .SubtitleFormatOverride "dvd"}}selected{{end}}>DVD</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-sa btn-sm">Save</button>
+        </form>
+        <button class="btn btn-outline-danger btn-sm" hx-delete="/api/overrides/movie/{{.ID}}/subtitle-format" hx-swap="none"
+            hx-confirm="Clear subtitle format override for this movie and use the global setting?">
+            <i class="bi bi-x-circle me-1"></i>Clear Override (use global)
+        </button>
+        {{else}}
+        <div class="mb-3">
+            <small class="text-muted-sa">Using global setting</small>
+            <div>{{if $.GlobalSubtitleFormat}}{{$.GlobalSubtitleFormat}}{{else}}<span class="text-muted-sa">Any format</span>{{end}}</div>
+        </div>
+        <form hx-post="/api/overrides/movie/{{.ID}}/subtitle-format" hx-swap="none" class="d-flex gap-2 align-items-end">
+            <div class="flex-grow-1">
+                <label class="form-label mb-1" style="font-size:0.85rem;">Set override for this movie</label>
+                <select class="form-select form-select-sm" name="subtitle_format">
+                    <option value="">Any (no preference)</option>
+                    <option value="srt">SRT</option>
+                    <option value="ass">ASS/SSA</option>
+                    <option value="vtt">VTT</option>
+                    <option value="pgs">PGS</option>
+                    <option value="dvd">DVD</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-sa btn-sm">Save</button>
+        </form>
+        {{end}}
+        {{else}}
+        {{if .SubtitleFormatOverride}}
+        <div>
+            <small class="text-muted-sa">Series override</small>
+            <div><strong>{{.SubtitleFormatOverride}}</strong></div>
+        </div>
+        {{else}}
+        <div>
+            <small class="text-muted-sa">Using global setting</small>
+            <div>{{if $.GlobalSubtitleFormat}}{{$.GlobalSubtitleFormat}}{{else}}<span class="text-muted-sa">Any format</span>{{end}}</div>
+        </div>
+        {{end}}
+        <div class="mt-2" style="font-size:0.85rem;">
+            <i class="bi bi-info-circle me-1 text-muted-sa"></i>
+            <span class="text-muted-sa">Subtitle format preferences for TV shows are managed per series on the <a href="/shows">Shows</a> page.</span>
+        </div>
+        {{end}}
+    </div>
+</div>
+
 <!-- Audio Tracks -->
 <div class="card mb-4">
     <div class="card-header d-flex justify-content-between align-items-center">

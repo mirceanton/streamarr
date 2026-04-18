@@ -175,6 +175,24 @@ func RescanFile(mf *models.MediaFile) error {
 	return scanFile(root, mf.Path, preferredLangs)
 }
 
+// subtitleCodecToFormat maps ffmpeg codec names to user-friendly format names.
+func subtitleCodecToFormat(codec string) string {
+	switch strings.ToLower(codec) {
+	case "subrip", "mov_text":
+		return "srt"
+	case "ass", "ssa":
+		return "ass"
+	case "webvtt":
+		return "vtt"
+	case "hdmv_pgs_subtitle":
+		return "pgs"
+	case "dvd_subtitle", "dvdsub":
+		return "dvd"
+	default:
+		return codec
+	}
+}
+
 func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) error {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -197,10 +215,15 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 
 	// Resolve effective preferred languages: per-item override takes precedence over global
 	effectiveLangs := preferredLangs
+	// Resolve effective preferred subtitle format: per-item override takes precedence over global
+	effectiveSubtitleFormat, _ := db.GetPreferredSubtitleFormat()
 	switch root.Type {
 	case "movies":
 		if override, _ := db.GetLanguageOverride(root.ID, path, "movie"); len(override) > 0 {
 			effectiveLangs = override
+		}
+		if override, _ := db.GetSubtitleFormatOverride(root.ID, path, "movie"); override != "" {
+			effectiveSubtitleFormat = override
 		}
 	case "shows":
 		seriesKey := title
@@ -210,6 +233,9 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 		if override, _ := db.GetLanguageOverride(root.ID, seriesKey, "series"); len(override) > 0 {
 			effectiveLangs = override
 		}
+		if override, _ := db.GetSubtitleFormatOverride(root.ID, seriesKey, "series"); override != "" {
+			effectiveSubtitleFormat = override
+		}
 	}
 
 	// Probe streams
@@ -218,7 +244,7 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 		return fmt.Errorf("probe: %w", err)
 	}
 
-	needsAttention, attentionReasons := ComputeAttentionReasons(audioTracks, subtitleTracks, effectiveLangs)
+	needsAttention, attentionReasons := ComputeAttentionReasons(audioTracks, subtitleTracks, effectiveLangs, effectiveSubtitleFormat)
 
 	mf := &models.MediaFile{
 		LibraryRootID:    root.ID,
@@ -316,7 +342,7 @@ func parseSeasonEpisode(filename string) (int, int) {
 }
 
 // ComputeAttentionReasons returns whether a file needs attention and a human-readable description of why.
-func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTrack, preferredLangs []string) (bool, string) {
+func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTrack, preferredLangs []string, preferredSubtitleFormat string) (bool, string) {
 	preferred := make(map[string]bool)
 	for _, l := range preferredLangs {
 		preferred[strings.ToLower(l)] = true
@@ -339,14 +365,20 @@ func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTr
 	subPreferred[""] = true
 
 	var subBad []string
+	var subFormatBad []string
 	for _, s := range subs {
 		lang := strings.ToLower(s.Language)
 		if !subPreferred[lang] && lang != "und" {
 			subBad = append(subBad, fmt.Sprintf("stream %d (%s)", s.StreamIndex, s.Language))
+		} else if preferredSubtitleFormat != "" && (subPreferred[lang] || lang == "und") {
+			format := subtitleCodecToFormat(s.Codec)
+			if format != strings.ToLower(preferredSubtitleFormat) {
+				subFormatBad = append(subFormatBad, fmt.Sprintf("stream %d (%s, got %s)", s.StreamIndex, s.Language, format))
+			}
 		}
 	}
 
-	if len(audioBad) == 0 && len(subBad) == 0 {
+	if len(audioBad) == 0 && len(subBad) == 0 && len(subFormatBad) == 0 {
 		return false, ""
 	}
 
@@ -356,6 +388,9 @@ func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTr
 	}
 	if len(subBad) > 0 {
 		parts = append(parts, "Non-preferred subtitles: "+strings.Join(subBad, ", "))
+	}
+	if len(subFormatBad) > 0 {
+		parts = append(parts, "Non-preferred subtitle format (want "+preferredSubtitleFormat+"): "+strings.Join(subFormatBad, ", "))
 	}
 	return true, strings.Join(parts, "\n")
 }

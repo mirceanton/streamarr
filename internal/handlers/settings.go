@@ -24,13 +24,15 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 	langs, _ := db.GetPreferredLanguages()
 	scanStatus := scanner.IsScanRunning()
 	parallelJobs := db.GetParallelJobs()
+	preferredSubtitleFormat, _ := db.GetPreferredSubtitleFormat()
 
 	data := map[string]interface{}{
-		"Page":               "settings",
-		"LibraryRoots":       roots,
-		"PreferredLanguages": strings.Join(langs, ", "),
-		"ScanStatus":         scanStatus,
-		"ParallelJobs":       parallelJobs,
+		"Page":                    "settings",
+		"LibraryRoots":            roots,
+		"PreferredLanguages":      strings.Join(langs, ", "),
+		"ScanStatus":              scanStatus,
+		"ParallelJobs":            parallelJobs,
+		"PreferredSubtitleFormat": preferredSubtitleFormat,
 	}
 	render(w, "settings.html", data)
 }
@@ -239,6 +241,36 @@ func UpdateParallelJobsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := db.SetSetting("parallel_jobs", strconv.Itoa(n)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/settings")
+	w.WriteHeader(http.StatusOK)
+}
+
+var validSubtitleFormats = map[string]bool{
+	"":    true,
+	"srt": true,
+	"ass": true,
+	"vtt": true,
+	"pgs": true,
+	"dvd": true,
+}
+
+func UpdateSubtitleFormatHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	format := strings.TrimSpace(strings.ToLower(r.FormValue("subtitle_format")))
+	if !validSubtitleFormats[format] {
+		http.Error(w, "Invalid subtitle format", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.SetSetting("preferred_subtitle_format", format); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

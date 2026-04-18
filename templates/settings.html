@@ -164,6 +164,36 @@
     </div>
 </div>
 
+<!-- Preferred Subtitle Format -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-badge-cc me-2"></i>Preferred Subtitle Format</div>
+    <div class="card-body">
+        <form hx-post="/api/settings/subtitle-format" hx-swap="none">
+            <p class="text-muted-sa" style="font-size:0.85rem;">
+                Files with subtitle tracks in a format other than the preferred one will be flagged as "Needs Attention".
+                Leave blank to accept any format.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <select class="form-select" name="subtitle_format">
+                        <option value="" {{if eq .PreferredSubtitleFormat ""}}selected{{end}}>Any (no preference)</option>
+                        <option value="srt" {{if eq .PreferredSubtitleFormat "srt"}}selected{{end}}>SRT (SubRip)</option>
+                        <option value="ass" {{if eq .PreferredSubtitleFormat "ass"}}selected{{end}}>ASS/SSA (Advanced SubStation Alpha)</option>
+                        <option value="vtt" {{if eq .PreferredSubtitleFormat "vtt"}}selected{{end}}>VTT (WebVTT)</option>
+                        <option value="pgs" {{if eq .PreferredSubtitleFormat "pgs"}}selected{{end}}>PGS (Blu-ray image)</option>
+                        <option value="dvd" {{if eq .PreferredSubtitleFormat "dvd"}}selected{{end}}>DVD (VOBSUB image)</option>
+                    </select>
+                </div>
+                <div class="col-md-8 d-flex align-items-end">
+                    <button type="submit" class="btn btn-sa">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Parallel Jobs -->
 <div class="card mb-4">
     <div class="card-header"><i class="bi bi-cpu me-2"></i>Parallel Jobs</div>

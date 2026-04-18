@@ -312,6 +312,10 @@ func GetMediaFile(id int64) (*models.MediaFile, error) {
 	if err != nil {
 		return nil, err
 	}
+	f.SubtitleFormatOverride, err = GetSubtitleFormatOverride(f.LibraryRootID, itemKey, itemType)
+	if err != nil {
+		return nil, err
+	}
 
 	return &f, nil
 }
@@ -775,6 +779,38 @@ func SetLanguageOverride(libraryRootID int64, itemKey, itemType string, langs []
 
 func DeleteLanguageOverride(libraryRootID int64, itemKey, itemType string) error {
 	_, err := DB.Exec(`DELETE FROM language_overrides WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
+		libraryRootID, itemKey, itemType)
+	return err
+}
+
+// --- Subtitle Format Settings ---
+
+func GetPreferredSubtitleFormat() (string, error) {
+	return GetSetting("preferred_subtitle_format")
+}
+
+// --- Subtitle Format Overrides ---
+
+func GetSubtitleFormatOverride(libraryRootID int64, itemKey, itemType string) (string, error) {
+	var val string
+	err := DB.QueryRow(`SELECT preferred_subtitle_format FROM subtitle_format_overrides WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
+		libraryRootID, itemKey, itemType).Scan(&val)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return val, err
+}
+
+func SetSubtitleFormatOverride(libraryRootID int64, itemKey, itemType, format string) error {
+	_, err := DB.Exec(`INSERT INTO subtitle_format_overrides (library_root_id, item_key, item_type, preferred_subtitle_format)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(library_root_id, item_key, item_type) DO UPDATE SET preferred_subtitle_format = excluded.preferred_subtitle_format`,
+		libraryRootID, itemKey, itemType, format)
+	return err
+}
+
+func DeleteSubtitleFormatOverride(libraryRootID int64, itemKey, itemType string) error {
+	_, err := DB.Exec(`DELETE FROM subtitle_format_overrides WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
 		libraryRootID, itemKey, itemType)
 	return err
 }

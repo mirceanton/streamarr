@@ -41,10 +41,10 @@ func ShowsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Populate per-series language overrides
+	// Populate per-series overrides
 	for key, s := range seriesMap {
-		override, _ := db.GetLanguageOverride(s.LibraryRootID, key, "series")
-		s.LanguageOverride = override
+		s.LanguageOverride, _ = db.GetLanguageOverride(s.LibraryRootID, key, "series")
+		s.SubtitleFormatOverride, _ = db.GetSubtitleFormatOverride(s.LibraryRootID, key, "series")
 	}
 
 	var series []models.Series
@@ -102,17 +102,21 @@ func SeriesEpisodesHandler(w http.ResponseWriter, r *http.Request) {
 		libraryRootID = episodes[0].LibraryRootID
 	}
 
-	override, _ := db.GetLanguageOverride(libraryRootID, title, "series")
+	langOverride, _ := db.GetLanguageOverride(libraryRootID, title, "series")
+	subtitleFormatOverride, _ := db.GetSubtitleFormatOverride(libraryRootID, title, "series")
 	globalLangs, _ := db.GetPreferredLanguages()
+	globalSubtitleFormat, _ := db.GetPreferredSubtitleFormat()
 
 	data := map[string]interface{}{
-		"Page":             "shows",
-		"SeriesTitle":      title,
-		"LibraryRootID":    libraryRootID,
-		"Episodes":         episodes,
-		"LanguageOverride": override,
-		"NeedsAttention":   needsAttention,
-		"GlobalLanguages":  strings.Join(globalLangs, ", "),
+		"Page":                   "shows",
+		"SeriesTitle":            title,
+		"LibraryRootID":          libraryRootID,
+		"Episodes":               episodes,
+		"LanguageOverride":       langOverride,
+		"SubtitleFormatOverride": subtitleFormatOverride,
+		"NeedsAttention":         needsAttention,
+		"GlobalLanguages":        strings.Join(globalLangs, ", "),
+		"GlobalSubtitleFormat":   globalSubtitleFormat,
 	}
 	render(w, "series.html", data)
 }

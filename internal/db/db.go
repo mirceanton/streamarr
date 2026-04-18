@@ -108,6 +108,14 @@ func migrate() error {
 			preferred_languages TEXT NOT NULL,
 			UNIQUE(library_root_id, item_key, item_type)
 		)`,
+		`CREATE TABLE IF NOT EXISTS subtitle_format_overrides (
+			id INTEGER PRIMARY KEY,
+			library_root_id INTEGER NOT NULL REFERENCES library_roots(id) ON DELETE CASCADE,
+			item_key TEXT NOT NULL,
+			item_type TEXT NOT NULL CHECK(item_type IN ('movie', 'series')),
+			preferred_subtitle_format TEXT NOT NULL,
+			UNIQUE(library_root_id, item_key, item_type)
+		)`,
 	}
 
 	for _, m := range migrations {
@@ -120,6 +128,7 @@ func migrate() error {
 	defaults := []struct{ key, value string }{
 		{"preferred_languages", `["eng"]`},
 		{"parallel_jobs", "1"},
+		{"preferred_subtitle_format", ""},
 	}
 	for _, d := range defaults {
 		if _, err := DB.Exec(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, d.key, d.value); err != nil {
