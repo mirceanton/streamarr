@@ -317,6 +317,7 @@
     <div class="main-content">
         {{template "content" .}}
     </div>
+    <div id="sa-toast-container" class="position-fixed bottom-0 end-0 p-3" style="z-index:1100;min-width:320px;max-width:420px;"></div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
     function sortTable(th) {
@@ -353,6 +354,108 @@
         });
         rows.forEach(function(row) { tbody.appendChild(row); });
     }
+
+    // ---- Toast / job-failure notification system ----
+
+    function _escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function showToast(message, type, linkHref, linkText) {
+        var container = document.getElementById('sa-toast-container');
+        if (!container) return;
+        var id = 'sa-t-' + Date.now();
+        var delay = type === 'danger' ? 12000 : 6000;
+        var typeClass = (type === 'danger' || type === 'success' || type === 'warning') ? type : 'secondary';
+        var linkHtml = linkHref
+            ? ' <a href="' + _escHtml(linkHref) + '" style="color:inherit;font-weight:700;text-decoration:underline;">' + _escHtml(linkText || 'View') + '</a>'
+            : '';
+        container.insertAdjacentHTML('beforeend',
+            '<div id="' + id + '" class="toast text-bg-' + typeClass + ' border-0" role="alert" aria-atomic="true" data-bs-delay="' + delay + '">' +
+            '<div class="d-flex align-items-center px-1">' +
+            '<div class="toast-body">' + message + linkHtml + '</div>' +
+            '<button type="button" class="btn-close btn-close-white me-2 ms-auto flex-shrink-0" data-bs-dismiss="toast" aria-label="Close"></button>' +
+            '</div></div>');
+        var el = document.getElementById(id);
+        new bootstrap.Toast(el).show();
+        el.addEventListener('hidden.bs.toast', function() { el.remove(); });
+    }
+
+    function queueToast(message, type, linkHref, linkText) {
+        try {
+            var q = JSON.parse(localStorage.getItem('sa-toast-queue') || '[]');
+            q.push({message: message, type: type, linkHref: linkHref, linkText: linkText});
+            localStorage.setItem('sa-toast-queue', JSON.stringify(q));
+        } catch(e) {}
+    }
+
+    function _flushToastQueue() {
+        try {
+            var q = JSON.parse(localStorage.getItem('sa-toast-queue') || '[]');
+            if (!q.length) return;
+            localStorage.removeItem('sa-toast-queue');
+            q.forEach(function(t) { showToast(t.message, t.type, t.linkHref, t.linkText); });
+        } catch(e) {}
+    }
+
+    function trackJobForFailure(jobId) {
+        try {
+            var jobs = JSON.parse(localStorage.getItem('sa-tracking-jobs') || '[]');
+            if (jobs.indexOf(jobId) === -1) {
+                jobs.push(jobId);
+                localStorage.setItem('sa-tracking-jobs', JSON.stringify(jobs));
+            }
+        } catch(e) {}
+    }
+
+    function _removeTrackedJob(jobId) {
+        try {
+            var jobs = JSON.parse(localStorage.getItem('sa-tracking-jobs') || '[]');
+            localStorage.setItem('sa-tracking-jobs', JSON.stringify(jobs.filter(function(id) { return id !== jobId; })));
+        } catch(e) {}
+    }
+
+    function _pollTrackedJobs() {
+        try {
+            var jobs = JSON.parse(localStorage.getItem('sa-tracking-jobs') || '[]');
+            jobs.forEach(function(jobId) {
+                fetch('/api/jobs/' + jobId + '/status-json')
+                    .then(function(r) { return r.ok ? r.json() : null; })
+                    .then(function(data) {
+                        if (!data) return;
+                        if (data.status === 'failed') {
+                            _removeTrackedJob(jobId);
+                            var msg = data.filename
+                                ? 'Job failed for <strong>' + _escHtml(data.filename) + '</strong>.'
+                                : 'A job failed.';
+                            showToast(msg, 'danger', '/jobs', 'View Jobs');
+                        } else if (data.status === 'done') {
+                            _removeTrackedJob(jobId);
+                        }
+                    })
+                    .catch(function() {});
+            });
+        } catch(e) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Pick up job ID passed via redirect after single-file job creation
+        var params = new URLSearchParams(window.location.search);
+        var newJob = params.get('new_job');
+        if (newJob) {
+            trackJobForFailure(parseInt(newJob, 10));
+            params.delete('new_job');
+            var newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            history.replaceState(null, '', newUrl);
+        }
+
+        // Show any toasts queued before a page reload (e.g. bulk job success)
+        _flushToastQueue();
+
+        // Poll tracked jobs for failure every 5 seconds
+        _pollTrackedJobs();
+        setInterval(_pollTrackedJobs, 5000);
+    });
     </script>
     {{template "scripts" .}}
 </body>

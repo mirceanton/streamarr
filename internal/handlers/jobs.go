@@ -111,13 +111,35 @@ func CreateJobHandler(w http.ResponseWriter, r *http.Request) {
 
 	processor.Enqueue(jobID)
 
-	// Redirect back to media detail
+	// Redirect back to media detail, passing job ID so the page can track it
+	redirectURL := fmt.Sprintf("/media/%d?new_job=%d", mediaFileID, jobID)
 	if r.Header.Get("HX-Request") == "true" {
-		w.Header().Set("HX-Redirect", fmt.Sprintf("/media/%d", mediaFileID))
+		w.Header().Set("HX-Redirect", redirectURL)
 		w.WriteHeader(http.StatusOK)
 	} else {
-		http.Redirect(w, r, fmt.Sprintf("/media/%d", mediaFileID), http.StatusSeeOther)
+		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	}
+}
+
+func JobStatusJSONHandler(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	job, err := db.GetJob(id)
+	if err != nil {
+		http.Error(w, "Job not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":   job.Status,
+		"filename": job.MediaFilename,
+	})
 }
 
 func JobStatusHandler(w http.ResponseWriter, r *http.Request) {

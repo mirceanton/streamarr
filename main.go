@@ -61,6 +61,7 @@ func main() {
 	r.Post("/api/scan/{id}", handlers.ScanLibraryHandler)
 	r.Post("/api/jobs", handlers.CreateJobHandler)
 	r.Get("/api/jobs/{id}/status", handlers.JobStatusHandler)
+	r.Get("/api/jobs/{id}/status-json", handlers.JobStatusJSONHandler)
 	r.Post("/api/settings/libraries", handlers.AddLibraryHandler)
 	r.Delete("/api/settings/libraries/{id}", handlers.DeleteLibraryHandler)
 	r.Post("/api/settings/languages", handlers.UpdateLanguagesHandler)

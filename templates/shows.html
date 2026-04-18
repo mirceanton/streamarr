@@ -431,14 +431,18 @@ function applyBulkEdit() {
         const results = data.results || [];
         const queued = results.filter(r => r.job_id).length;
         const skipped = results.filter(r => r.skipped).length;
+        results.filter(r => r.job_id).forEach(r => trackJobForFailure(r.job_id));
         bootstrap.Modal.getInstance(document.getElementById('bulkEditModal')).hide();
-        alert(`Bulk edit queued!\n\n✓ ${queued} job(s) created\n⊘ ${skipped} episode(s) skipped\n\nCheck the Jobs page for progress.`);
+        queueToast(
+            `Bulk edit queued: ${queued} job(s) created, ${skipped} episode(s) skipped.`,
+            'success', '/jobs', 'View Jobs'
+        );
         window.location.reload();
     })
     .catch(err => {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Apply to All Episodes';
-        alert('Error applying bulk edit: ' + err.message);
+        showToast('Error applying bulk edit: ' + _escHtml(err.message), 'danger');
     });
 }
 </script>
