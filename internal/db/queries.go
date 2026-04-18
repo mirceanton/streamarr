@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mirceanton/streamarr/internal/models"
@@ -124,9 +125,9 @@ func GetMediaFileScanTimes(libraryRootID int64) (map[string]time.Time, error) {
 func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]models.MediaFile, error) {
 	query := `SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
 		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons,
-		(SELECT COUNT(*) FROM audio_tracks WHERE media_file_id = mf.id) as audio_count,
-		(SELECT COUNT(*) FROM subtitle_tracks WHERE media_file_id = mf.id) as sub_count,
-		(SELECT COUNT(*) FROM external_subtitle_files WHERE media_file_id = mf.id) as ext_sub_count,
+		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM audio_tracks WHERE media_file_id = mf.id), '') as audio_langs,
+		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM subtitle_tracks WHERE media_file_id = mf.id), '') as sub_langs,
+		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM external_subtitle_files WHERE media_file_id = mf.id), '') as ext_sub_langs,
 		lr.type
 		FROM media_files mf
 		JOIN library_roots lr ON mf.library_root_id = lr.id
@@ -145,16 +146,27 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 	var files []models.MediaFile
 	for rows.Next() {
 		var f models.MediaFile
-		var audioCount, subCount, extSubCount int
+		var audioLangs, subLangs, extSubLangs string
 		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
 			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
-			&audioCount, &subCount, &extSubCount, &f.LibraryType); err != nil {
+			&audioLangs, &subLangs, &extSubLangs, &f.LibraryType); err != nil {
 			return nil, err
 		}
-		// Store counts as fake slices for template use
-		f.AudioTracks = make([]models.AudioTrack, audioCount)
-		f.SubtitleTracks = make([]models.SubtitleTrack, subCount)
-		f.ExternalSubtitleFiles = make([]models.ExternalSubtitleFile, extSubCount)
+		if audioLangs != "" {
+			for _, l := range strings.Split(audioLangs, ",") {
+				f.AudioTracks = append(f.AudioTracks, models.AudioTrack{Language: l})
+			}
+		}
+		if subLangs != "" {
+			for _, l := range strings.Split(subLangs, ",") {
+				f.SubtitleTracks = append(f.SubtitleTracks, models.SubtitleTrack{Language: l})
+			}
+		}
+		if extSubLangs != "" {
+			for _, l := range strings.Split(extSubLangs, ",") {
+				f.ExternalSubtitleFiles = append(f.ExternalSubtitleFiles, models.ExternalSubtitleFile{Language: l})
+			}
+		}
 		files = append(files, f)
 	}
 	return files, rows.Err()
