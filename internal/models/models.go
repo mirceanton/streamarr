@@ -14,18 +14,18 @@ type LibraryRoot struct {
 
 // MediaFile represents a single media file on disk.
 type MediaFile struct {
-	ID             int64
-	LibraryRootID  int64
-	Path           string
-	Filename       string
-	Title          string
-	Year           int
-	Season         *int // nil for movies
-	Episode        *int // nil for movies
-	SizeBytes      int64
-	Container      string
-	ScannedAt      time.Time
-	NeedsAttention  bool
+	ID               int64
+	LibraryRootID    int64
+	Path             string
+	Filename         string
+	Title            string
+	Year             int
+	Season           *int // nil for movies
+	Episode          *int // nil for movies
+	SizeBytes        int64
+	Container        string
+	ScannedAt        time.Time
+	NeedsAttention   bool
 	AttentionReasons string
 
 	// Joined fields (not always populated)
@@ -105,13 +105,13 @@ type Operation struct {
 
 // Series groups episodes for the shows view.
 type Series struct {
-	Title                string
-	Path                 string
-	LibraryRootID        int64
-	Episodes             []MediaFile
-	NeedsAttention       bool
+	Title                 string
+	Path                  string
+	LibraryRootID         int64
+	Episodes              []MediaFile
+	NeedsAttention        bool
 	AttentionEpisodeCount int
-	LanguageOverride     []string // nil means use global setting
+	LanguageOverride      []string // nil means use global setting
 }
 
 // ScanStatus tracks whether a scan is in progress.
