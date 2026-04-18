@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -111,8 +112,13 @@ func CreateJobHandler(w http.ResponseWriter, r *http.Request) {
 
 	processor.Enqueue(jobID)
 
-	// Redirect back to media detail, passing job ID so the page can track it
-	redirectURL := fmt.Sprintf("/media/%d?new_job=%d", mediaFileID, jobID)
+	// Redirect to the table view: movies list for movies, series episodes page for shows
+	var redirectURL string
+	if mf.LibraryType == "movies" {
+		redirectURL = "/movies"
+	} else {
+		redirectURL = "/shows/" + url.PathEscape(mf.Title)
+	}
 	if r.Header.Get("HX-Request") == "true" {
 		w.Header().Set("HX-Redirect", redirectURL)
 		w.WriteHeader(http.StatusOK)
