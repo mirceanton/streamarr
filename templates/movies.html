@@ -6,6 +6,9 @@
 </div>
 
 <div class="filter-bar">
+    <input type="search" class="form-control form-control-sm" id="movieSearch"
+        placeholder="Search by title or filename..." oninput="filterMovies(this.value)"
+        style="max-width:320px;">
     <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" id="attentionFilter"
             {{if .NeedsAttention}}checked{{end}}
@@ -56,4 +59,17 @@
     <p>Add a movie library in <a href="/settings">Settings</a> and run a scan to get started.</p>
 </div>
 {{end}}
+{{end}}
+
+{{define "scripts"}}
+<script>
+function filterMovies(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('.card table tbody tr').forEach(function(row) {
+        const title = row.cells[0].textContent.toLowerCase();
+        const file = row.cells[2].textContent.toLowerCase();
+        row.style.display = (!q || title.includes(q) || file.includes(q)) ? '' : 'none';
+    });
+}
+</script>
 {{end}}

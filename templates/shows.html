@@ -6,6 +6,9 @@
 </div>
 
 <div class="filter-bar">
+    <input type="search" class="form-control form-control-sm" id="showSearch"
+        placeholder="Search by series or episode..." oninput="filterShows(this.value)"
+        style="max-width:320px;">
     <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" id="attentionFilter"
             {{if .NeedsAttention}}checked{{end}}
@@ -135,6 +138,29 @@ function toggleLangForm(btn) {
     const seriesGroup = btn.closest('.series-group');
     const langForm = seriesGroup.querySelector('.series-lang-form');
     langForm.style.display = langForm.style.display === 'none' ? 'block' : 'none';
+}
+
+function filterShows(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('.series-group').forEach(function(group) {
+        const title = group.dataset.series.toLowerCase();
+        const titleMatch = !q || title.includes(q);
+        let episodeMatch = false;
+        group.querySelectorAll('.series-episodes tbody tr').forEach(function(row) {
+            const file = row.cells[1].textContent.toLowerCase();
+            if (!titleMatch && q && file.includes(q)) episodeMatch = true;
+        });
+        group.style.display = (titleMatch || episodeMatch) ? '' : 'none';
+        if (episodeMatch) {
+            const episodes = group.querySelector('.series-episodes');
+            const chevron = group.querySelector('.series-chevron');
+            if (!episodes.classList.contains('show')) {
+                episodes.classList.add('show');
+                chevron.classList.remove('bi-chevron-right');
+                chevron.classList.add('bi-chevron-down');
+            }
+        }
+    });
 }
 </script>
 {{end}}
