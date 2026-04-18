@@ -119,3 +119,17 @@ type ScanStatus struct {
 	Total     int
 	Done      int
 }
+
+// DashboardStats holds aggregated statistics for the dashboard overview.
+type DashboardStats struct {
+	TotalMovies           int
+	MoviesNeedAttention   int
+	TotalSeries           int
+	SeriesNeedAttention   int
+	TotalEpisodes         int
+	EpisodesNeedAttention int
+	TotalJobs             int
+	RunningJobs           int
+	PendingJobs           int
+	HealthPct             int // percentage of total files matching language preferences
+}

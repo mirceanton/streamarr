@@ -429,6 +429,59 @@ func GetPendingJobs() ([]models.Job, error) {
 	return jobs, rows.Err()
 }
 
+// --- Dashboard ---
+
+func GetDashboardStats() (*models.DashboardStats, error) {
+	stats := &models.DashboardStats{}
+
+	err := DB.QueryRow(`
+		SELECT
+			COUNT(*),
+			SUM(CASE WHEN mf.needs_attention = 1 THEN 1 ELSE 0 END)
+		FROM media_files mf
+		JOIN library_roots lr ON mf.library_root_id = lr.id
+		WHERE lr.type = 'movies'`).
+		Scan(&stats.TotalMovies, &stats.MoviesNeedAttention)
+	if err != nil {
+		return nil, err
+	}
+
+	err = DB.QueryRow(`
+		SELECT
+			COUNT(DISTINCT mf.title),
+			COUNT(DISTINCT CASE WHEN mf.needs_attention = 1 THEN mf.title END),
+			COUNT(*),
+			SUM(CASE WHEN mf.needs_attention = 1 THEN 1 ELSE 0 END)
+		FROM media_files mf
+		JOIN library_roots lr ON mf.library_root_id = lr.id
+		WHERE lr.type = 'shows'`).
+		Scan(&stats.TotalSeries, &stats.SeriesNeedAttention, &stats.TotalEpisodes, &stats.EpisodesNeedAttention)
+	if err != nil {
+		return nil, err
+	}
+
+	err = DB.QueryRow(`
+		SELECT
+			COUNT(*),
+			SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END),
+			SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END)
+		FROM jobs`).
+		Scan(&stats.TotalJobs, &stats.RunningJobs, &stats.PendingJobs)
+	if err != nil {
+		return nil, err
+	}
+
+	total := stats.TotalMovies + stats.TotalEpisodes
+	attention := stats.MoviesNeedAttention + stats.EpisodesNeedAttention
+	if total > 0 {
+		stats.HealthPct = (total - attention) * 100 / total
+	} else {
+		stats.HealthPct = 100
+	}
+
+	return stats, nil
+}
+
 // --- Settings ---
 
 func GetSetting(key string) (string, error) {
