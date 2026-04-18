@@ -40,9 +40,9 @@
                     <td class="text-muted-sa" data-sort-value="{{if .Year}}{{.Year}}{{else}}0{{end}}">{{if .Year}}{{.Year}}{{else}}&mdash;{{end}}</td>
                     <td class="text-muted-sa" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{.Filename}}">{{.Filename}}</td>
                     <td class="text-muted-sa" data-sort-value="{{.SizeBytes}}">{{formatSize .SizeBytes}}</td>
-                    <td class="stream-count" data-sort-value="{{len .AudioTracks}}">{{len .AudioTracks}}</td>
-                    <td class="stream-count" data-sort-value="{{len .SubtitleTracks}}">{{len .SubtitleTracks}}</td>
-                    <td class="stream-count" data-sort-value="{{len .ExternalSubtitleFiles}}">{{len .ExternalSubtitleFiles}}</td>
+                    <td class="stream-count" data-sort-value="{{len .AudioTracks}}">{{len .AudioTracks}}{{if .AudioTracks}} <span class="text-muted-sa" style="font-size:0.8rem;">({{audioLangs .AudioTracks}})</span>{{end}}</td>
+                    <td class="stream-count" data-sort-value="{{len .SubtitleTracks}}">{{len .SubtitleTracks}}{{if .SubtitleTracks}} <span class="text-muted-sa" style="font-size:0.8rem;">({{subLangs .SubtitleTracks}})</span>{{end}}</td>
+                    <td class="stream-count" data-sort-value="{{len .ExternalSubtitleFiles}}">{{len .ExternalSubtitleFiles}}{{if .ExternalSubtitleFiles}} <span class="text-muted-sa" style="font-size:0.8rem;">({{extSubLangs .ExternalSubtitleFiles}})</span>{{end}}</td>
                     <td data-sort-value="{{if .NeedsAttention}}1{{else}}0{{end}}">
                         {{if .NeedsAttention}}
                         <span class="badge badge-attention" title="{{.AttentionReasons}}">Needs Attention</span>
