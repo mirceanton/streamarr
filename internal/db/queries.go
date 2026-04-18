@@ -618,6 +618,12 @@ func GetSeriesEpisodesFull(seriesTitle string, libraryRootID int64) ([]models.Me
 			return nil, err
 		}
 		files[i].SubtitleTracks = subs
+
+		extSubs, err := GetExternalSubtitleFiles(files[i].ID)
+		if err != nil {
+			return nil, err
+		}
+		files[i].ExternalSubtitleFiles = extSubs
 	}
 
 	return files, nil
