@@ -90,6 +90,16 @@ func migrate() error {
 			key TEXT PRIMARY KEY,
 			value TEXT NOT NULL
 		)`,
+		`CREATE TABLE IF NOT EXISTS external_subtitle_files (
+			id INTEGER PRIMARY KEY,
+			media_file_id INTEGER NOT NULL REFERENCES media_files(id) ON DELETE CASCADE,
+			path TEXT NOT NULL UNIQUE,
+			filename TEXT NOT NULL,
+			language TEXT,
+			format TEXT,
+			forced BOOLEAN DEFAULT 0,
+			sdh BOOLEAN DEFAULT 0
+		)`,
 		`CREATE TABLE IF NOT EXISTS language_overrides (
 			id INTEGER PRIMARY KEY,
 			library_root_id INTEGER NOT NULL REFERENCES library_roots(id) ON DELETE CASCADE,

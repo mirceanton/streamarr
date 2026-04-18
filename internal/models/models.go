@@ -27,10 +27,23 @@ type MediaFile struct {
 	NeedsAttention bool
 
 	// Joined fields (not always populated)
-	AudioTracks      []AudioTrack
-	SubtitleTracks   []SubtitleTrack
-	LibraryType      string   // from library_roots.type
-	LanguageOverride []string // nil means use global setting
+	AudioTracks           []AudioTrack
+	SubtitleTracks        []SubtitleTrack
+	ExternalSubtitleFiles []ExternalSubtitleFile
+	LibraryType           string   // from library_roots.type
+	LanguageOverride      []string // nil means use global setting
+}
+
+// ExternalSubtitleFile represents a subtitle sidecar file found on disk alongside a media file.
+type ExternalSubtitleFile struct {
+	ID          int64
+	MediaFileID int64
+	Path        string
+	Filename    string
+	Language    string
+	Format      string // srt, ass, ssa, vtt, sub
+	Forced      bool
+	SDH         bool
 }
 
 // AudioTrack represents an audio stream in a media file.
@@ -78,9 +91,14 @@ type Job struct {
 
 // Operation represents a single action within a job.
 type Operation struct {
-	Type        string `json:"type"` // remove_audio, remove_subtitle, extract_subtitle
+	Type        string `json:"type"` // remove_audio, remove_subtitle, extract_subtitle, embed_subtitle
 	StreamIndex int    `json:"stream_index"`
 	OutputPath  string `json:"output_path,omitempty"`
+	// embed_subtitle fields
+	SourcePath string `json:"source_path,omitempty"` // path to the external subtitle file to embed
+	Language   string `json:"language,omitempty"`    // language tag for stream metadata
+	Forced     bool   `json:"forced,omitempty"`      // set forced disposition
+	SDH        bool   `json:"sdh,omitempty"`         // set hearing_impaired disposition
 }
 
 // Series groups episodes for the shows view.

@@ -62,6 +62,10 @@ func DeleteLibraryRoot(id int64) error {
 	if err != nil {
 		return err
 	}
+	_, err = tx.Exec(`DELETE FROM external_subtitle_files WHERE media_file_id IN (SELECT id FROM media_files WHERE library_root_id = ?)`, id)
+	if err != nil {
+		return err
+	}
 	// Delete jobs for files in this library
 	_, err = tx.Exec(`DELETE FROM jobs WHERE media_file_id IN (SELECT id FROM media_files WHERE library_root_id = ?)`, id)
 	if err != nil {
@@ -142,6 +146,10 @@ func GetMediaFile(id int64) (*models.MediaFile, error) {
 		return nil, err
 	}
 	f.SubtitleTracks, err = GetSubtitleTracks(id)
+	if err != nil {
+		return nil, err
+	}
+	f.ExternalSubtitleFiles, err = GetExternalSubtitleFiles(id)
 	if err != nil {
 		return nil, err
 	}
@@ -272,6 +280,46 @@ func InsertSubtitleTrack(t *models.SubtitleTrack) error {
 	_, err := DB.Exec(`INSERT INTO subtitle_tracks (media_file_id, stream_index, codec, language, title, default_track, forced, sdh)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.MediaFileID, t.StreamIndex, t.Codec, t.Language, t.Title, t.DefaultTrack, t.Forced, t.SDH)
+	return err
+}
+
+// --- External Subtitle Files ---
+
+func GetExternalSubtitleFiles(mediaFileID int64) ([]models.ExternalSubtitleFile, error) {
+	rows, err := DB.Query(`SELECT id, media_file_id, path, filename, language, format, forced, sdh
+		FROM external_subtitle_files WHERE media_file_id = ? ORDER BY filename`, mediaFileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []models.ExternalSubtitleFile
+	for rows.Next() {
+		var f models.ExternalSubtitleFile
+		if err := rows.Scan(&f.ID, &f.MediaFileID, &f.Path, &f.Filename, &f.Language, &f.Format, &f.Forced, &f.SDH); err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
+	return files, rows.Err()
+}
+
+func InsertExternalSubtitleFile(f *models.ExternalSubtitleFile) error {
+	_, err := DB.Exec(`INSERT INTO external_subtitle_files (media_file_id, path, filename, language, format, forced, sdh)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(path) DO UPDATE SET
+			media_file_id = excluded.media_file_id,
+			filename = excluded.filename,
+			language = excluded.language,
+			format = excluded.format,
+			forced = excluded.forced,
+			sdh = excluded.sdh`,
+		f.MediaFileID, f.Path, f.Filename, f.Language, f.Format, f.Forced, f.SDH)
+	return err
+}
+
+func DeleteExternalSubtitleFilesForFile(mediaFileID int64) error {
+	_, err := DB.Exec(`DELETE FROM external_subtitle_files WHERE media_file_id = ?`, mediaFileID)
 	return err
 }
 

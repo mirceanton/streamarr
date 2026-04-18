@@ -64,7 +64,19 @@ func processJob(jobID int64) {
 		return
 	}
 
-	// Execute extract operations first (before removing anything)
+	// Execute embed operations first — new streams are appended, so original indices stay valid
+	currentSubCount := len(mf.SubtitleTracks)
+	for _, op := range ops {
+		if op.Type == "embed_subtitle" {
+			if err := embedSubtitle(mf.Path, op, currentSubCount); err != nil {
+				failJob(jobID, fmt.Sprintf("embed subtitle %s: %v", filepath.Base(op.SourcePath), err))
+				return
+			}
+			currentSubCount++
+		}
+	}
+
+	// Execute extract operations
 	for _, op := range ops {
 		if op.Type == "extract_subtitle" {
 			if err := extractSubtitle(mf.Path, op); err != nil {
@@ -156,6 +168,11 @@ func processJob(jobID int64) {
 		}
 	}
 
+	// Refresh external subtitle file list (picks up any newly extracted sidecar files)
+	if err := scanner.ScanExternalSubtitles(mf); err != nil {
+		log.Printf("scan external subtitles after job %d: %v", jobID, err)
+	}
+
 	db.UpdateJobStatus(jobID, "done")
 }
 
@@ -177,6 +194,64 @@ func extractSubtitle(inputPath string, op models.Operation) error {
 	if err != nil {
 		return fmt.Errorf("%v: %s", err, string(output))
 	}
+	return nil
+}
+
+func embedSubtitle(inputPath string, op models.Operation, newSubStreamIdx int) error {
+	if op.SourcePath == "" {
+		return fmt.Errorf("no source path specified for embed")
+	}
+
+	args := []string{
+		"-y",
+		"-i", inputPath,
+		"-i", op.SourcePath,
+		"-map", "0",
+		"-map", "1:0",
+		"-c", "copy",
+	}
+
+	if op.Language != "" {
+		args = append(args,
+			fmt.Sprintf("-metadata:s:s:%d", newSubStreamIdx),
+			fmt.Sprintf("language=%s", op.Language),
+		)
+	}
+
+	if op.Forced || op.SDH {
+		var dispositions []string
+		if op.Forced {
+			dispositions = append(dispositions, "forced")
+		}
+		if op.SDH {
+			dispositions = append(dispositions, "hearing_impaired")
+		}
+		args = append(args,
+			fmt.Sprintf("-disposition:s:s:%d", newSubStreamIdx),
+			strings.Join(dispositions, "+"),
+		)
+	}
+
+	tmpPath := inputPath + ".tmp" + filepath.Ext(inputPath)
+	args = append(args, tmpPath)
+
+	cmd := exec.Command("ffmpeg", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("%v: %s", err, string(output))
+	}
+
+	if err := os.Rename(tmpPath, inputPath); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("rename temp file: %v", err)
+	}
+
+	// Delete the source file after it has been successfully embedded
+	if err := os.Remove(op.SourcePath); err != nil {
+		log.Printf("warning: remove embedded subtitle source %s: %v", op.SourcePath, err)
+	}
+
 	return nil
 }
 

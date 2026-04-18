@@ -178,6 +178,11 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 		}
 	}
 
+	mf.ID = fileID
+	if err := ScanExternalSubtitles(mf); err != nil {
+		log.Printf("scan external subtitles for %s: %v", path, err)
+	}
+
 	return nil
 }
 
@@ -260,6 +265,89 @@ func checkNeedsAttention(audio []models.AudioTrack, subs []models.SubtitleTrack,
 	}
 
 	return false
+}
+
+// subtitleFlagWords are parts of an external subtitle filename that indicate flags, not a language code.
+var subtitleFlagWords = map[string]bool{
+	"forced":  true,
+	"sdh":     true,
+	"hi":      true,
+	"cc":      true,
+	"default": true,
+}
+
+// ScanExternalSubtitles detects subtitle sidecar files in the same directory as mf and stores them in the DB.
+func ScanExternalSubtitles(mf *models.MediaFile) error {
+	dir := filepath.Dir(mf.Path)
+	basename := strings.TrimSuffix(mf.Filename, filepath.Ext(mf.Filename))
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("read directory: %w", err)
+	}
+
+	if err := db.DeleteExternalSubtitleFilesForFile(mf.ID); err != nil {
+		return fmt.Errorf("delete old external subtitle files: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		ext := strings.ToLower(filepath.Ext(name))
+		if !IsExternalSubtitleExt(ext) {
+			continue
+		}
+		// The file's name without its extension must equal the basename or start with basename+"."
+		inner := strings.TrimSuffix(name, filepath.Ext(name))
+		if inner != basename && !strings.HasPrefix(inner, basename+".") {
+			continue
+		}
+		suffix := strings.TrimPrefix(inner, basename)
+		suffix = strings.TrimPrefix(suffix, ".")
+
+		lang, forced, sdh := parseExternalSubSuffix(suffix)
+		format := strings.TrimPrefix(ext, ".")
+
+		esf := &models.ExternalSubtitleFile{
+			MediaFileID: mf.ID,
+			Path:        filepath.Join(dir, name),
+			Filename:    name,
+			Language:    lang,
+			Format:      format,
+			Forced:      forced,
+			SDH:         sdh,
+		}
+		if err := db.InsertExternalSubtitleFile(esf); err != nil {
+			log.Printf("insert external subtitle %s: %v", name, err)
+		}
+	}
+	return nil
+}
+
+// parseExternalSubSuffix parses the part of an external subtitle filename between the media basename
+// and the file extension (e.g. "eng.forced" → lang="eng", forced=true).
+func parseExternalSubSuffix(suffix string) (lang string, forced, sdh bool) {
+	if suffix == "" {
+		return
+	}
+	for _, p := range strings.Split(strings.ToLower(suffix), ".") {
+		if p == "" {
+			continue
+		}
+		switch p {
+		case "forced":
+			forced = true
+		case "sdh", "hi", "cc":
+			sdh = true
+		default:
+			if (len(p) == 2 || len(p) == 3) && !subtitleFlagWords[p] {
+				lang = p
+			}
+		}
+	}
+	return
 }
 
 // IsScanRunning returns current scan status.

@@ -1,4 +1,4 @@
-FROM alpine:3.21
+FROM alpine:3.23
 
 RUN apk add --no-cache ffmpeg
 USER 1000:1000

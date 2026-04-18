@@ -73,11 +73,11 @@
                 <table class="table">
                     <thead>
                         <tr>
-                            <th>Episode</th>
-                            <th>File</th>
-                            <th>Size</th>
-                            <th>Streams</th>
-                            <th>Status</th>
+                            <th class="sortable" onclick="sortTable(this)">Episode <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                            <th class="sortable" onclick="sortTable(this)">File <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                            <th class="sortable" onclick="sortTable(this)">Size <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                            <th class="sortable" onclick="sortTable(this)">Streams <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                            <th class="sortable" onclick="sortTable(this)">Status <i class="sort-icon bi bi-arrow-down-up"></i></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -87,9 +87,9 @@
                                 {{if hasValue .Season}}S{{printf "%02d" (deref .Season)}}E{{printf "%02d" (deref .Episode)}}{{else}}&mdash;{{end}}
                             </td>
                             <td class="text-muted-sa" style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{.Filename}}">{{.Filename}}</td>
-                            <td class="text-muted-sa">{{formatSize .SizeBytes}}</td>
-                            <td class="stream-count">{{len .AudioTracks}} audio &middot; {{len .SubtitleTracks}} subs</td>
-                            <td>
+                            <td class="text-muted-sa" data-sort-value="{{.SizeBytes}}">{{formatSize .SizeBytes}}</td>
+                            <td class="stream-count" data-sort-value="{{len .AudioTracks}}">{{len .AudioTracks}} audio &middot; {{len .SubtitleTracks}} subs</td>
+                            <td data-sort-value="{{if .NeedsAttention}}1{{else}}0{{end}}">
                                 {{if .NeedsAttention}}
                                 <span class="badge badge-attention">Needs Attention</span>
                                 {{else}}
