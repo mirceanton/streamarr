@@ -12,7 +12,7 @@ import (
 // --- Library Roots ---
 
 func GetLibraryRoots() ([]models.LibraryRoot, error) {
-	rows, err := DB.Query(`SELECT id, name, path, type, last_scanned_at FROM library_roots ORDER BY name`)
+	rows, err := DB.Query(`SELECT id, name, path, type, last_scanned_at, scan_schedule FROM library_roots ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +21,7 @@ func GetLibraryRoots() ([]models.LibraryRoot, error) {
 	var roots []models.LibraryRoot
 	for rows.Next() {
 		var r models.LibraryRoot
-		if err := rows.Scan(&r.ID, &r.Name, &r.Path, &r.Type, &r.LastScannedAt); err != nil {
+		if err := rows.Scan(&r.ID, &r.Name, &r.Path, &r.Type, &r.LastScannedAt, &r.ScanSchedule); err != nil {
 			return nil, err
 		}
 		roots = append(roots, r)
@@ -31,12 +31,21 @@ func GetLibraryRoots() ([]models.LibraryRoot, error) {
 
 func GetLibraryRoot(id int64) (*models.LibraryRoot, error) {
 	var r models.LibraryRoot
-	err := DB.QueryRow(`SELECT id, name, path, type, last_scanned_at FROM library_roots WHERE id = ?`, id).
-		Scan(&r.ID, &r.Name, &r.Path, &r.Type, &r.LastScannedAt)
+	err := DB.QueryRow(`SELECT id, name, path, type, last_scanned_at, scan_schedule FROM library_roots WHERE id = ?`, id).
+		Scan(&r.ID, &r.Name, &r.Path, &r.Type, &r.LastScannedAt, &r.ScanSchedule)
 	if err != nil {
 		return nil, err
 	}
 	return &r, nil
+}
+
+func UpdateLibraryScanSchedule(id int64, schedule string) error {
+	if schedule == "" {
+		_, err := DB.Exec(`UPDATE library_roots SET scan_schedule = NULL WHERE id = ?`, id)
+		return err
+	}
+	_, err := DB.Exec(`UPDATE library_roots SET scan_schedule = ? WHERE id = ?`, schedule, id)
+	return err
 }
 
 func CreateLibraryRoot(name, path, typ string) (int64, error) {
@@ -89,6 +98,25 @@ func DeleteLibraryRoot(id int64) error {
 func UpdateLibraryScanTime(id int64) error {
 	_, err := DB.Exec(`UPDATE library_roots SET last_scanned_at = ? WHERE id = ?`, time.Now(), id)
 	return err
+}
+
+func GetMediaFileScanTimes(libraryRootID int64) (map[string]time.Time, error) {
+	rows, err := DB.Query(`SELECT path, scanned_at FROM media_files WHERE library_root_id = ?`, libraryRootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]time.Time)
+	for rows.Next() {
+		var path string
+		var scannedAt time.Time
+		if err := rows.Scan(&path, &scannedAt); err != nil {
+			return nil, err
+		}
+		result[path] = scannedAt
+	}
+	return result, rows.Err()
 }
 
 // --- Media Files ---

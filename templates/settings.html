@@ -3,10 +3,16 @@
 {{define "content"}}
 <div class="page-header">
     <h1><i class="bi bi-gear me-2"></i>Settings</h1>
-    <div>
-        <button class="btn btn-sa" hx-post="/api/scan/all" hx-swap="none"
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-sa" hx-post="/api/scan/all" hx-vals='{"scan_type": "quick"}' hx-swap="none"
+            title="Scan only new and recently modified files"
             {{if .ScanStatus.Running}}disabled{{end}}>
-            <i class="bi bi-arrow-clockwise"></i> Scan All Libraries
+            <i class="bi bi-search"></i> Quick Scan All
+        </button>
+        <button class="btn btn-sa" hx-post="/api/scan/all" hx-vals='{"scan_type": "full"}' hx-swap="none"
+            title="Rescan all files in all libraries"
+            {{if .ScanStatus.Running}}disabled{{end}}>
+            <i class="bi bi-arrow-clockwise"></i> Full Scan All
         </button>
     </div>
 </div>
@@ -38,6 +44,7 @@
                         <th>Path</th>
                         <th>Type</th>
                         <th>Last Scanned</th>
+                        <th>Scan Schedule</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -61,9 +68,30 @@
                             {{end}}
                         </td>
                         <td>
-                            <button class="btn btn-outline-sa btn-sm me-1" hx-post="/api/scan/{{.ID}}" hx-swap="none"
+                            <form hx-post="/api/settings/libraries/{{.ID}}/schedule" hx-swap="none"
+                                  class="d-flex gap-1 align-items-center">
+                                <input type="text" class="form-control form-control-sm" name="schedule"
+                                       style="width:120px;font-size:0.8rem;"
+                                       placeholder="0 2 * * *"
+                                       title="Cron expression (e.g. '0 2 * * *' for 2am daily)"
+                                       value="{{derefStr .ScanSchedule}}">
+                                <button type="submit" class="btn btn-outline-sa btn-sm" title="Save schedule">
+                                    <i class="bi bi-clock"></i>
+                                </button>
+                            </form>
+                        </td>
+                        <td>
+                            <button class="btn btn-outline-sa btn-sm me-1" hx-post="/api/scan/{{.ID}}"
+                                hx-vals='{"scan_type": "quick"}' hx-swap="none"
+                                title="Scan only new and recently modified files"
                                 {{if $.ScanStatus.Running}}disabled{{end}}>
-                                <i class="bi bi-arrow-clockwise"></i> Scan
+                                <i class="bi bi-search"></i>
+                            </button>
+                            <button class="btn btn-outline-sa btn-sm me-1" hx-post="/api/scan/{{.ID}}"
+                                hx-vals='{"scan_type": "full"}' hx-swap="none"
+                                title="Full rescan of all files"
+                                {{if $.ScanStatus.Running}}disabled{{end}}>
+                                <i class="bi bi-arrow-clockwise"></i>
                             </button>
                             <button class="btn btn-outline-danger btn-sm" hx-delete="/api/settings/libraries/{{.ID}}" hx-swap="none"
                                 hx-confirm="Delete library '{{.Name}}'? This will remove all scanned data for this library.">

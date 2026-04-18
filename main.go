@@ -11,6 +11,7 @@ import (
 	"github.com/mirceanton/streamarr/internal/db"
 	"github.com/mirceanton/streamarr/internal/handlers"
 	"github.com/mirceanton/streamarr/internal/processor"
+	"github.com/mirceanton/streamarr/internal/scheduler"
 )
 
 func main() {
@@ -38,6 +39,9 @@ func main() {
 	// Start job processor
 	processor.Start()
 
+	// Start scan scheduler
+	scheduler.Start()
+
 	// Set up router
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -61,6 +65,8 @@ func main() {
 	r.Delete("/api/settings/libraries/{id}", handlers.DeleteLibraryHandler)
 	r.Post("/api/settings/languages", handlers.UpdateLanguagesHandler)
 	r.Post("/api/settings/parallel-jobs", handlers.UpdateParallelJobsHandler)
+	r.Post("/api/settings/libraries/{id}/schedule", handlers.UpdateLibraryScanScheduleHandler)
+	r.Post("/api/media/{id}/rescan", handlers.RescanFileHandler)
 	r.Post("/api/overrides/movie/{id}", handlers.SetMovieLanguageOverrideHandler)
 	r.Delete("/api/overrides/movie/{id}", handlers.DeleteMovieLanguageOverrideHandler)
 	r.Post("/api/overrides/series", handlers.SetSeriesLanguageOverrideHandler)

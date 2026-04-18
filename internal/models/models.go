@@ -9,6 +9,7 @@ type LibraryRoot struct {
 	Path          string
 	Type          string // "movies" or "shows"
 	LastScannedAt *time.Time
+	ScanSchedule  *string // cron expression, nil means no schedule
 }
 
 // MediaFile represents a single media file on disk.

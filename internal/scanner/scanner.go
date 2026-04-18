@@ -33,8 +33,19 @@ var (
 	seasonEpisodeRe = regexp.MustCompile(`(?i)[Ss](\d+)[Ee](\d+)`)
 )
 
-// ScanLibrary scans a library root and populates the database.
+// ScanLibrary performs a full scan of a library root, rescanning all media files.
 func ScanLibrary(root *models.LibraryRoot) error {
+	return runScan(root, false)
+}
+
+// ScanLibraryQuick scans only new or modified files in a library root.
+// A file is considered new if it is not already in the database.
+// A file is considered modified if its modification time is newer than its last scan time.
+func ScanLibraryQuick(root *models.LibraryRoot) error {
+	return runScan(root, true)
+}
+
+func runScan(root *models.LibraryRoot, quickMode bool) error {
 	scanMu.Lock()
 	if ScanStatus.Running {
 		scanMu.Unlock()
@@ -53,7 +64,18 @@ func ScanLibrary(root *models.LibraryRoot) error {
 		scanMu.Unlock()
 	}()
 
-	// Collect all media files first
+	// In quick mode, load existing file scan times to skip unchanged files
+	var scanTimes map[string]time.Time
+	if quickMode {
+		var err error
+		scanTimes, err = db.GetMediaFileScanTimes(root.ID)
+		if err != nil {
+			log.Printf("get scan times for library %d: %v", root.ID, err)
+			scanTimes = map[string]time.Time{}
+		}
+	}
+
+	// Collect files to scan
 	var files []string
 	err := filepath.Walk(root.Path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -63,9 +85,16 @@ func ScanLibrary(root *models.LibraryRoot) error {
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
-		if mediaExts[ext] {
-			files = append(files, path)
+		if !mediaExts[ext] {
+			return nil
 		}
+		if quickMode {
+			lastScanned, exists := scanTimes[path]
+			if exists && !info.ModTime().After(lastScanned) {
+				return nil // unchanged, skip
+			}
+		}
+		files = append(files, path)
 		return nil
 	})
 	if err != nil {
@@ -94,6 +123,16 @@ func ScanLibrary(root *models.LibraryRoot) error {
 
 	db.UpdateLibraryScanTime(root.ID)
 	return nil
+}
+
+// RescanFile re-probes a single media file and updates its database record.
+func RescanFile(mf *models.MediaFile) error {
+	root, err := db.GetLibraryRoot(mf.LibraryRootID)
+	if err != nil {
+		return fmt.Errorf("get library root: %w", err)
+	}
+	preferredLangs, _ := db.GetPreferredLanguages()
+	return scanFile(root, mf.Path, preferredLangs)
 }
 
 func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) error {
