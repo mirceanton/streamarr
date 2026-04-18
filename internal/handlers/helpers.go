@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/mirceanton/streamarr/internal/models"
 	"github.com/mirceanton/streamarr/internal/scanner"
 )
 
@@ -35,6 +36,9 @@ var funcMap = template.FuncMap{
 		}
 		return ""
 	},
+	"audioLangs":  audioTrackLangs,
+	"subLangs":    subTrackLangs,
+	"extSubLangs": extSubLangs,
 }
 
 func InitTemplates() error {
@@ -106,6 +110,54 @@ func formatSize(bytes int64) string {
 	default:
 		return fmt.Sprintf("%d B", bytes)
 	}
+}
+
+func audioTrackLangs(tracks []models.AudioTrack) string {
+	seen := make(map[string]bool)
+	var langs []string
+	for _, t := range tracks {
+		lang := t.Language
+		if lang == "" {
+			lang = "?"
+		}
+		if !seen[lang] {
+			seen[lang] = true
+			langs = append(langs, lang)
+		}
+	}
+	return strings.Join(langs, ", ")
+}
+
+func subTrackLangs(tracks []models.SubtitleTrack) string {
+	seen := make(map[string]bool)
+	var langs []string
+	for _, t := range tracks {
+		lang := t.Language
+		if lang == "" {
+			lang = "?"
+		}
+		if !seen[lang] {
+			seen[lang] = true
+			langs = append(langs, lang)
+		}
+	}
+	return strings.Join(langs, ", ")
+}
+
+func extSubLangs(files []models.ExternalSubtitleFile) string {
+	seen := make(map[string]bool)
+	var langs []string
+	for _, f := range files {
+		lang := f.Language
+		if lang == "" {
+			lang = "?"
+		}
+		if !seen[lang] {
+			seen[lang] = true
+			langs = append(langs, lang)
+		}
+	}
+	return strings.Join(langs, ", ")
 }
 
 func languageName(code string) string {
