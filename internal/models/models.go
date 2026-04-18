@@ -34,6 +34,7 @@ type MediaFile struct {
 	ExternalSubtitleFiles []ExternalSubtitleFile
 	LibraryType           string   // from library_roots.type
 	LanguageOverride      []string // nil means use global setting
+	ActiveJobStatus       string   // "pending", "running", or "" if none
 }
 
 // ExternalSubtitleFile represents a subtitle sidecar file found on disk alongside a media file.

@@ -101,8 +101,12 @@
                             <td class="stream-count" data-sort-value="{{len .AudioTracks}}">{{len .AudioTracks}}{{if .AudioTracks}} <span class="text-muted-sa" style="font-size:0.8rem;">({{audioLangs .AudioTracks}})</span>{{end}}</td>
                             <td class="stream-count" data-sort-value="{{len .SubtitleTracks}}">{{len .SubtitleTracks}}{{if .SubtitleTracks}} <span class="text-muted-sa" style="font-size:0.8rem;">({{subLangs .SubtitleTracks}})</span>{{end}}</td>
                             <td class="stream-count" data-sort-value="{{len .ExternalSubtitleFiles}}">{{len .ExternalSubtitleFiles}}{{if .ExternalSubtitleFiles}} <span class="text-muted-sa" style="font-size:0.8rem;">({{extSubLangs .ExternalSubtitleFiles}})</span>{{end}}</td>
-                            <td data-sort-value="{{if .NeedsAttention}}1{{else}}0{{end}}">
-                                {{if .NeedsAttention}}
+                            <td data-sort-value="{{if eq .ActiveJobStatus "running"}}3{{else if eq .ActiveJobStatus "pending"}}2{{else if .NeedsAttention}}1{{else}}0{{end}}">
+                                {{if eq .ActiveJobStatus "running"}}
+                                <span class="badge badge-status-running" style="font-size:0.7rem;" title="A job is currently processing this file"><i class="bi bi-gear-fill me-1"></i>Processing</span>
+                                {{else if eq .ActiveJobStatus "pending"}}
+                                <span class="badge badge-status-pending" style="font-size:0.7rem;" title="A job is queued for this file"><i class="bi bi-clock me-1"></i>Queued</span>
+                                {{else if .NeedsAttention}}
                                 <span class="badge badge-attention" title="{{.AttentionReasons}}">Needs Attention</span>
                                 {{else}}
                                 <span class="badge bg-secondary" style="font-size:0.7rem;">OK</span>
