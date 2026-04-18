@@ -512,7 +512,7 @@ func GetDashboardStats() (*models.DashboardStats, error) {
 	err := DB.QueryRow(`
 		SELECT
 			COUNT(*),
-			SUM(CASE WHEN mf.needs_attention = 1 THEN 1 ELSE 0 END)
+			COALESCE(SUM(CASE WHEN mf.needs_attention = 1 THEN 1 ELSE 0 END), 0)
 		FROM media_files mf
 		JOIN library_roots lr ON mf.library_root_id = lr.id
 		WHERE lr.type = 'movies'`).
@@ -526,7 +526,7 @@ func GetDashboardStats() (*models.DashboardStats, error) {
 			COUNT(DISTINCT mf.title),
 			COUNT(DISTINCT CASE WHEN mf.needs_attention = 1 THEN mf.title END),
 			COUNT(*),
-			SUM(CASE WHEN mf.needs_attention = 1 THEN 1 ELSE 0 END)
+			COALESCE(SUM(CASE WHEN mf.needs_attention = 1 THEN 1 ELSE 0 END), 0)
 		FROM media_files mf
 		JOIN library_roots lr ON mf.library_root_id = lr.id
 		WHERE lr.type = 'shows'`).
@@ -538,8 +538,8 @@ func GetDashboardStats() (*models.DashboardStats, error) {
 	err = DB.QueryRow(`
 		SELECT
 			COUNT(*),
-			SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END),
-			SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END)
+			COALESCE(SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0)
 		FROM jobs`).
 		Scan(&stats.TotalJobs, &stats.RunningJobs, &stats.PendingJobs)
 	if err != nil {
