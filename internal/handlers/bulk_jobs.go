@@ -14,16 +14,28 @@ import (
 	"github.com/mirceanton/streamarr/internal/scanner"
 )
 
-// SeriesTracksResponse is returned by GetSeriesTracksHandler.
-type SeriesTracksResponse struct {
-	EpisodeCount              int      `json:"episode_count"`
-	AudioLanguages            []string `json:"audio_languages"`
-	SubtitleLanguages         []string `json:"subtitle_languages"`
-	ExternalSubtitleLanguages []string `json:"external_subtitle_languages"`
-	HasImageBasedSubtitle     bool     `json:"has_image_based_subtitle"`
+// SubtitleTrackInfo describes a distinct subtitle track by language and format.
+type SubtitleTrackInfo struct {
+	Language string `json:"language"`
+	Format   string `json:"format"` // codec for embedded tracks; file extension for external sidecar files
+	IsImage  bool   `json:"is_image"`
 }
 
-// GetSeriesTracksHandler returns aggregate track language info for all episodes in a series.
+// TrackFilter selects a subtitle track by language and format.
+type TrackFilter struct {
+	Language string `json:"language"`
+	Format   string `json:"format"`
+}
+
+// SeriesTracksResponse is returned by GetSeriesTracksHandler.
+type SeriesTracksResponse struct {
+	EpisodeCount           int                 `json:"episode_count"`
+	AudioLanguages         []string            `json:"audio_languages"`
+	SubtitleTracks         []SubtitleTrackInfo `json:"subtitle_tracks"`
+	ExternalSubtitleTracks []SubtitleTrackInfo `json:"external_subtitle_tracks"`
+}
+
+// GetSeriesTracksHandler returns aggregate track language+format info for all episodes in a series.
 // GET /api/series/tracks?title=...&library_root_id=...
 func GetSeriesTracksHandler(w http.ResponseWriter, r *http.Request) {
 	title := r.URL.Query().Get("title")
@@ -46,10 +58,11 @@ func GetSeriesTracksHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	type trackKey struct{ lang, format string }
+
 	audioLangSet := make(map[string]bool)
-	subLangSet := make(map[string]bool)
-	extSubLangSet := make(map[string]bool)
-	hasImageSub := false
+	subTrackSet := make(map[trackKey]bool)
+	extSubTrackSet := make(map[trackKey]bool)
 
 	for _, ep := range episodes {
 		for _, at := range ep.AudioTracks {
@@ -64,30 +77,43 @@ func GetSeriesTracksHandler(w http.ResponseWriter, r *http.Request) {
 			if lang == "" {
 				lang = "und"
 			}
-			subLangSet[lang] = true
-			if scanner.IsImageBasedSubtitle(st.Codec) {
-				hasImageSub = true
-			}
+			subTrackSet[trackKey{lang, st.Codec}] = true
 		}
 		for _, esf := range ep.ExternalSubtitleFiles {
 			lang := esf.Language
 			if lang == "" {
 				lang = "und"
 			}
-			extSubLangSet[lang] = true
+			extSubTrackSet[trackKey{lang, esf.Format}] = true
 		}
 	}
 
 	audioLangs := sortedKeys(audioLangSet)
-	subLangs := sortedKeys(subLangSet)
-	extSubLangs := sortedKeys(extSubLangSet)
+
+	var subTracks []SubtitleTrackInfo
+	for k := range subTrackSet {
+		subTracks = append(subTracks, SubtitleTrackInfo{
+			Language: k.lang,
+			Format:   k.format,
+			IsImage:  scanner.IsImageBasedSubtitle(k.format),
+		})
+	}
+	sortSubtitleTracks(subTracks)
+
+	var extSubTracks []SubtitleTrackInfo
+	for k := range extSubTrackSet {
+		extSubTracks = append(extSubTracks, SubtitleTrackInfo{
+			Language: k.lang,
+			Format:   k.format,
+		})
+	}
+	sortSubtitleTracks(extSubTracks)
 
 	resp := SeriesTracksResponse{
-		EpisodeCount:              len(episodes),
-		AudioLanguages:            audioLangs,
-		SubtitleLanguages:         subLangs,
-		ExternalSubtitleLanguages: extSubLangs,
-		HasImageBasedSubtitle:     hasImageSub,
+		EpisodeCount:           len(episodes),
+		AudioLanguages:         audioLangs,
+		SubtitleTracks:         subTracks,
+		ExternalSubtitleTracks: extSubTracks,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -96,16 +122,16 @@ func GetSeriesTracksHandler(w http.ResponseWriter, r *http.Request) {
 
 // BulkJobRequest is the JSON body for POST /api/bulk-jobs/series.
 type BulkJobRequest struct {
-	SeriesTitle                     string   `json:"series_title"`
-	LibraryRootID                   int64    `json:"library_root_id"`
-	KeepAudioLanguages              []string `json:"keep_audio_languages"`
-	KeepSubtitleLanguages           []string `json:"keep_subtitle_languages"`
-	ExtractSubtitleLanguages        []string `json:"extract_subtitle_languages"`
-	EmbedExternalSubtitleLanguages  []string `json:"embed_external_subtitle_languages"`
-	DeleteExternalSubtitleLanguages []string `json:"delete_external_subtitle_languages"`
+	SeriesTitle                  string        `json:"series_title"`
+	LibraryRootID                int64         `json:"library_root_id"`
+	KeepAudioLanguages           []string      `json:"keep_audio_languages"`
+	KeepSubtitleTracks           []TrackFilter `json:"keep_subtitle_tracks"`
+	ExtractSubtitleTracks        []TrackFilter `json:"extract_subtitle_tracks"`
+	EmbedExternalSubtitleTracks  []TrackFilter `json:"embed_external_subtitle_tracks"`
+	DeleteExternalSubtitleTracks []TrackFilter `json:"delete_external_subtitle_tracks"`
 }
 
-// BulkJobsSeriesHandler creates one job per episode in a series based on language-level operations.
+// BulkJobsSeriesHandler creates one job per episode in a series based on language+format-level operations.
 // POST /api/bulk-jobs/series
 func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 	var req BulkJobRequest
@@ -130,10 +156,10 @@ func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	keepAudio := toLangSet(req.KeepAudioLanguages)
-	keepSub := toLangSet(req.KeepSubtitleLanguages)
-	extractSub := toLangSet(req.ExtractSubtitleLanguages)
-	embedExtSub := toLangSet(req.EmbedExternalSubtitleLanguages)
-	deleteExtSub := toLangSet(req.DeleteExternalSubtitleLanguages)
+	keepSub := toTrackSet(req.KeepSubtitleTracks)
+	extractSub := toTrackSet(req.ExtractSubtitleTracks)
+	embedExtSub := toTrackSet(req.EmbedExternalSubtitleTracks)
+	deleteExtSub := toTrackSet(req.DeleteExternalSubtitleTracks)
 
 	type result struct {
 		Filename string `json:"filename"`
@@ -176,7 +202,7 @@ func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// buildEpisodeOps generates the operations for a single episode given language keep/extract sets.
+// buildEpisodeOps generates the operations for a single episode given language+format keep/extract sets.
 // Returns the list of operations and, when the list is empty, a human-readable reason explaining why.
 func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub map[string]bool) ([]models.Operation, string) {
 	var ops []models.Operation
@@ -217,31 +243,28 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 		}
 	}
 
-	// Subtitles: first extract (if requested), then remove (if not in keepSub)
+	// Embedded subtitles: extract (if requested), then remove (if not in keepSub).
+	// Matching is by "lang:codec" key, supporting distinct handling per format.
 	if len(extractSub) > 0 {
 		for _, st := range ep.SubtitleTracks {
 			lang := st.Language
 			if lang == "" {
 				lang = "und"
 			}
-			if extractSub[lang] {
-				if scanner.IsImageBasedSubtitle(st.Codec) {
-					// Image-based subtitles cannot be extracted as text sidecar files
-					skipReasons = append(skipReasons, fmt.Sprintf("subtitle extraction skipped for stream %d (%s): %s is image-based", st.StreamIndex, lang, st.Codec))
-				} else {
-					baseName := strings.TrimSuffix(ep.Filename, filepath.Ext(ep.Filename))
-					ext := scanner.SubtitleExtension(st.Codec)
-					outputLang := lang
-					if outputLang == "" {
-						outputLang = "und"
-					}
-					outputPath := filepath.Join(filepath.Dir(ep.Path), fmt.Sprintf("%s.%s.%s", baseName, outputLang, ext))
-					ops = append(ops, models.Operation{
-						Type:        "extract_subtitle",
-						StreamIndex: st.StreamIndex,
-						OutputPath:  outputPath,
-					})
+			trackKey := lang + ":" + strings.ToLower(st.Codec)
+			if extractSub[trackKey] {
+				baseName := strings.TrimSuffix(ep.Filename, filepath.Ext(ep.Filename))
+				ext := scanner.SubtitleExtension(st.Codec)
+				outputLang := lang
+				if outputLang == "" {
+					outputLang = "und"
 				}
+				outputPath := filepath.Join(filepath.Dir(ep.Path), fmt.Sprintf("%s.%s.%s", baseName, outputLang, ext))
+				ops = append(ops, models.Operation{
+					Type:        "extract_subtitle",
+					StreamIndex: st.StreamIndex,
+					OutputPath:  outputPath,
+				})
 			}
 		}
 	}
@@ -252,7 +275,8 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 			if lang == "" {
 				lang = "und"
 			}
-			if !keepSub[lang] {
+			trackKey := lang + ":" + strings.ToLower(st.Codec)
+			if !keepSub[trackKey] {
 				ops = append(ops, models.Operation{
 					Type:        "remove_subtitle",
 					StreamIndex: st.StreamIndex,
@@ -261,13 +285,15 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 		}
 	}
 
-	// External subtitles: embed into media file or delete sidecar
+	// External subtitles: embed into media file or delete sidecar.
+	// Matching is by "lang:format" key.
 	for _, esf := range ep.ExternalSubtitleFiles {
 		lang := esf.Language
 		if lang == "" {
 			lang = "und"
 		}
-		if embedExtSub[lang] {
+		extKey := lang + ":" + strings.ToLower(esf.Format)
+		if embedExtSub[extKey] {
 			ops = append(ops, models.Operation{
 				Type:       "embed_subtitle",
 				SourcePath: esf.Path,
@@ -275,7 +301,7 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 				Forced:     esf.Forced,
 				SDH:        esf.SDH,
 			})
-		} else if deleteExtSub[lang] {
+		} else if deleteExtSub[extKey] {
 			ops = append(ops, models.Operation{
 				Type:       "delete_external_subtitle",
 				SourcePath: esf.Path,
@@ -290,6 +316,17 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 		return ops, "no operations needed: episode already matches requested configuration"
 	}
 	return ops, ""
+}
+
+// toTrackSet converts a TrackFilter slice to a lookup map keyed by "lang:format".
+func toTrackSet(tracks []TrackFilter) map[string]bool {
+	s := make(map[string]bool, len(tracks))
+	for _, t := range tracks {
+		lang := strings.ToLower(strings.TrimSpace(t.Language))
+		format := strings.ToLower(strings.TrimSpace(t.Format))
+		s[lang+":"+format] = true
+	}
+	return s
 }
 
 // toLangSet converts a language slice to a lookup map.
@@ -307,7 +344,6 @@ func sortedKeys(m map[string]bool) []string {
 	for k := range m {
 		keys = append(keys, k)
 	}
-	// Simple sort
 	for i := 0; i < len(keys); i++ {
 		for j := i + 1; j < len(keys); j++ {
 			if keys[i] > keys[j] {
@@ -316,4 +352,17 @@ func sortedKeys(m map[string]bool) []string {
 		}
 	}
 	return keys
+}
+
+// sortSubtitleTracks sorts a SubtitleTrackInfo slice by language then format.
+func sortSubtitleTracks(tracks []SubtitleTrackInfo) {
+	for i := 0; i < len(tracks); i++ {
+		for j := i + 1; j < len(tracks); j++ {
+			ki := tracks[i].Language + ":" + tracks[i].Format
+			kj := tracks[j].Language + ":" + tracks[j].Format
+			if ki > kj {
+				tracks[i], tracks[j] = tracks[j], tracks[i]
+			}
+		}
+	}
 }
