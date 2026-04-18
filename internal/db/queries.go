@@ -96,6 +96,56 @@ func DeleteLibraryRoot(id int64) error {
 	return tx.Commit()
 }
 
+func GetMediaFilePaths(libraryRootID int64) (map[string]int64, error) {
+	rows, err := DB.Query(`SELECT id, path FROM media_files WHERE library_root_id = ?`, libraryRootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]int64)
+	for rows.Next() {
+		var id int64
+		var path string
+		if err := rows.Scan(&id, &path); err != nil {
+			return nil, err
+		}
+		result[path] = id
+	}
+	return result, rows.Err()
+}
+
+func DeleteMediaFileByID(id int64) error {
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`DELETE FROM audio_tracks WHERE media_file_id = ?`, id)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM subtitle_tracks WHERE media_file_id = ?`, id)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM external_subtitle_files WHERE media_file_id = ?`, id)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM jobs WHERE media_file_id = ?`, id)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(`DELETE FROM media_files WHERE id = ?`, id)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func UpdateLibraryScanTime(id int64) error {
 	_, err := DB.Exec(`UPDATE library_roots SET last_scanned_at = ? WHERE id = ?`, time.Now(), id)
 	return err
@@ -139,6 +189,57 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 	query += ` ORDER BY mf.title, mf.season, mf.episode`
 
 	rows, err := DB.Query(query, libType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var files []models.MediaFile
+	for rows.Next() {
+		var f models.MediaFile
+		var audioLangs, subLangs, extSubLangs string
+		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
+			&audioLangs, &subLangs, &extSubLangs, &f.LibraryType, &f.ActiveJobStatus); err != nil {
+			return nil, err
+		}
+		if audioLangs != "" {
+			for _, l := range strings.Split(audioLangs, ",") {
+				f.AudioTracks = append(f.AudioTracks, models.AudioTrack{Language: l})
+			}
+		}
+		if subLangs != "" {
+			for _, l := range strings.Split(subLangs, ",") {
+				f.SubtitleTracks = append(f.SubtitleTracks, models.SubtitleTrack{Language: l})
+			}
+		}
+		if extSubLangs != "" {
+			for _, l := range strings.Split(extSubLangs, ",") {
+				f.ExternalSubtitleFiles = append(f.ExternalSubtitleFiles, models.ExternalSubtitleFile{Language: l})
+			}
+		}
+		files = append(files, f)
+	}
+	return files, rows.Err()
+}
+
+func GetSeriesEpisodesForTable(title string, needsAttentionOnly bool) ([]models.MediaFile, error) {
+	query := `SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons,
+		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM audio_tracks WHERE media_file_id = mf.id), '') as audio_langs,
+		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM subtitle_tracks WHERE media_file_id = mf.id), '') as sub_langs,
+		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM external_subtitle_files WHERE media_file_id = mf.id), '') as ext_sub_langs,
+		lr.type,
+		COALESCE((SELECT status FROM jobs WHERE media_file_id = mf.id AND status IN ('pending', 'running') LIMIT 1), '') as active_job_status
+		FROM media_files mf
+		JOIN library_roots lr ON mf.library_root_id = lr.id
+		WHERE lr.type = 'shows' AND mf.title = ?`
+	if needsAttentionOnly {
+		query += ` AND mf.needs_attention = 1`
+	}
+	query += ` ORDER BY mf.season, mf.episode`
+
+	rows, err := DB.Query(query, title)
 	if err != nil {
 		return nil, err
 	}
@@ -520,6 +621,27 @@ func GetSeriesEpisodesFull(seriesTitle string, libraryRootID int64) ([]models.Me
 	}
 
 	return files, nil
+}
+
+func GetSeriesFilePaths(seriesTitle string, libraryRootID int64) ([]string, error) {
+	rows, err := DB.Query(`SELECT mf.path FROM media_files mf
+		JOIN library_roots lr ON mf.library_root_id = lr.id
+		WHERE mf.title = ? AND mf.library_root_id = ? AND lr.type = 'shows'`,
+		seriesTitle, libraryRootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var paths []string
+	for rows.Next() {
+		var path string
+		if err := rows.Scan(&path); err != nil {
+			return nil, err
+		}
+		paths = append(paths, path)
+	}
+	return paths, rows.Err()
 }
 
 // --- Dashboard ---

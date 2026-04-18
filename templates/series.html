@@ -1,0 +1,434 @@
+{{template "base" .}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1>
+        <a href="/shows" class="text-muted-sa text-decoration-none" style="font-size:0.85rem;font-weight:400;">
+            <i class="bi bi-tv me-1"></i>TV Shows
+        </a>
+        <i class="bi bi-chevron-right mx-2" style="font-size:0.75rem;color:#6c7086;"></i>
+        {{.SeriesTitle}}
+    </h1>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" id="seriesRescanBtn"
+            title="Rescan all episodes in this series"
+            onclick="rescanSeries('{{.SeriesTitle}}', {{.LibraryRootID}}, this)">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+        <button class="btn btn-outline-primary btn-sm" title="Bulk edit tracks for all episodes"
+            onclick="openBulkEdit('{{.SeriesTitle}}', {{.LibraryRootID}})">
+            <i class="bi bi-collection-play me-1"></i>Bulk Edit
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" title="Set language preference"
+            onclick="toggleLangForm()">
+            <i class="bi bi-translate"></i>
+        </button>
+    </div>
+</div>
+
+<div id="langFormWrapper" style="display:none;" class="mb-3">
+    <div class="card">
+        <div class="card-body py-2">
+            <form hx-post="/api/overrides/series" hx-swap="none" class="d-flex gap-2 align-items-end">
+                <input type="hidden" name="library_root_id" value="{{.LibraryRootID}}">
+                <input type="hidden" name="title" value="{{.SeriesTitle}}">
+                <div class="flex-grow-1">
+                    <label class="form-label mb-1" style="font-size:0.8rem;">
+                        Language override for <strong>{{.SeriesTitle}}</strong>
+                        {{if not .LanguageOverride}}<span class="text-muted-sa">(global: {{$.GlobalLanguages}})</span>{{end}}
+                    </label>
+                    <input type="text" class="form-control form-control-sm" name="languages"
+                        placeholder="e.g. eng, fra"
+                        value="{{join .LanguageOverride ", "}}">
+                </div>
+                <button type="submit" class="btn btn-sa btn-sm">Save</button>
+                {{if .LanguageOverride}}
+                <button type="button" class="btn btn-outline-danger btn-sm"
+                    hx-post="/api/overrides/series/delete"
+                    hx-include="closest form"
+                    hx-swap="none"
+                    hx-confirm="Clear language override for {{.SeriesTitle}} and use the global setting?">
+                    Clear
+                </button>
+                {{end}}
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <input type="search" class="form-control form-control-sm" id="episodeSearch"
+        placeholder="Search by episode or filename..." oninput="filterEpisodes(this.value)"
+        style="max-width:320px;">
+    <div class="d-flex align-items-center gap-2">
+        {{if .LanguageOverride}}
+        <span class="badge bg-secondary" style="font-size:0.7rem;" title="Language override set">
+            <i class="bi bi-translate me-1"></i>{{join .LanguageOverride ", "}}
+        </span>
+        {{end}}
+        <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="attentionFilter"
+                {{if .NeedsAttention}}checked{{end}}
+                data-series-title="{{.SeriesTitle}}"
+                onchange="window.location.href='/shows/'+encodeURIComponent(this.dataset.seriesTitle)+(this.checked?'?attention=1':'')">
+            <label class="form-check-label" for="attentionFilter">Needs Attention Only</label>
+        </div>
+    </div>
+</div>
+
+{{if .Episodes}}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable(this)">Episode <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">File <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Size <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Audio <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Subs <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Ext. Subs <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Status <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th style="width:3rem;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Episodes}}
+                <tr class="clickable-row" onclick="window.location='/media/{{.ID}}'">
+                    <td>
+                        {{if hasValue .Season}}S{{printf "%02d" (deref .Season)}}E{{printf "%02d" (deref .Episode)}}{{else}}&mdash;{{end}}
+                    </td>
+                    <td class="text-muted-sa" style="max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{.Filename}}">{{.Filename}}</td>
+                    <td class="text-muted-sa" data-sort-value="{{.SizeBytes}}">{{formatSize .SizeBytes}}</td>
+                    <td class="stream-count" data-sort-value="{{len .AudioTracks}}">{{len .AudioTracks}}{{if .AudioTracks}} <span class="text-muted-sa" style="font-size:0.8rem;">({{audioLangs .AudioTracks}})</span>{{end}}</td>
+                    <td class="stream-count" data-sort-value="{{len .SubtitleTracks}}">{{len .SubtitleTracks}}{{if .SubtitleTracks}} <span class="text-muted-sa" style="font-size:0.8rem;">({{subLangs .SubtitleTracks}})</span>{{end}}</td>
+                    <td class="stream-count" data-sort-value="{{len .ExternalSubtitleFiles}}">{{len .ExternalSubtitleFiles}}{{if .ExternalSubtitleFiles}} <span class="text-muted-sa" style="font-size:0.8rem;">({{extSubLangs .ExternalSubtitleFiles}})</span>{{end}}</td>
+                    <td data-sort-value="{{if eq .ActiveJobStatus "running"}}3{{else if eq .ActiveJobStatus "pending"}}2{{else if .NeedsAttention}}1{{else}}0{{end}}">
+                        {{if eq .ActiveJobStatus "running"}}
+                        <span class="badge badge-status-running" style="font-size:0.7rem;" title="A job is currently processing this file"><i class="bi bi-gear-fill me-1"></i>Processing</span>
+                        {{else if eq .ActiveJobStatus "pending"}}
+                        <span class="badge badge-status-pending" style="font-size:0.7rem;" title="A job is queued for this file"><i class="bi bi-clock me-1"></i>Queued</span>
+                        {{else if .NeedsAttention}}
+                        <span class="badge badge-attention" title="{{.AttentionReasons}}">Needs Attention</span>
+                        {{else}}
+                        <span class="badge bg-secondary" style="font-size:0.7rem;">OK</span>
+                        {{end}}
+                    </td>
+                    <td onclick="event.stopPropagation()">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="rescanFile({{.ID}}, this)" title="Rescan this episode">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{else}}
+<div class="empty-state">
+    <i class="bi bi-tv"></i>
+    <h5>No Episodes Found</h5>
+    <p>No episodes match the current filter.</p>
+</div>
+{{end}}
+
+<!-- Bulk Edit Modal -->
+<div class="modal fade" id="bulkEditModal" tabindex="-1" aria-labelledby="bulkEditModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" style="background:#1e1e2e;border:1px solid #313244;color:#cdd6f4;">
+            <div class="modal-header" style="border-bottom:1px solid #313244;">
+                <h5 class="modal-title" id="bulkEditModalLabel">
+                    <i class="bi bi-collection-play me-2"></i>Bulk Edit: <span id="bulkEditSeriesTitle"></span>
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="bulkEditLoading" class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted-sa">Loading track information...</p>
+                </div>
+                <div id="bulkEditContent" style="display:none;">
+                    <p class="text-muted-sa mb-3" id="bulkEditEpisodeCount"></p>
+                    <div class="alert" style="background:#181825;border:1px solid #45475a;color:#cdd6f4;font-size:0.85rem;" role="alert">
+                        <i class="bi bi-info-circle me-1"></i>
+                        Select the languages you want to <strong>keep</strong>. Tracks in other languages will be removed.
+                        Episodes that don't have any of the selected languages for audio will be skipped to avoid removing all audio tracks.
+                    </div>
+                    <div class="mb-4">
+                        <h6 class="mb-2"><i class="bi bi-volume-up me-2"></i>Audio Tracks — Languages to Keep</h6>
+                        <p class="text-muted-sa" style="font-size:0.8rem;">Uncheck languages to remove those audio tracks from all episodes.</p>
+                        <div id="audioLangCheckboxes" class="d-flex flex-wrap gap-2"></div>
+                        <div id="noAudioLangs" class="text-muted-sa" style="display:none;font-size:0.85rem;">No audio tracks found across episodes.</div>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="mb-2"><i class="bi bi-badge-cc me-2"></i>Subtitle Tracks</h6>
+                        <p class="text-muted-sa" style="font-size:0.8rem;">Choose which subtitle languages to keep and which to extract as sidecar files before removing.</p>
+                        <div id="subLangRows"></div>
+                        <div id="noSubLangs" class="text-muted-sa" style="display:none;font-size:0.85rem;">No subtitle tracks found across episodes.</div>
+                        <div id="imageSubWarning" class="mt-2" style="display:none;">
+                            <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Image-based subtitles (PGS/VOBSUB) cannot be extracted as text.</span>
+                        </div>
+                    </div>
+                    <div id="bulkEditPreview" class="mt-3 p-2 rounded" style="background:#181825;border:1px solid #45475a;font-size:0.82rem;"></div>
+                </div>
+                <div id="bulkEditError" class="alert alert-danger" style="display:none;"></div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #313244;">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm" id="bulkEditApplyBtn" style="display:none;" onclick="applyBulkEdit()">
+                    <i class="bi bi-play-fill me-1"></i>Apply to All Episodes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{define "scripts"}}
+<script>
+function toggleLangForm() {
+    const w = document.getElementById('langFormWrapper');
+    w.style.display = w.style.display === 'none' ? 'block' : 'none';
+}
+
+function filterEpisodes(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('.card table tbody tr').forEach(function(row) {
+        const ep = row.cells[0].textContent.toLowerCase();
+        const file = row.cells[1].textContent.toLowerCase();
+        row.style.display = (!q || ep.includes(q) || file.includes(q)) ? '' : 'none';
+    });
+}
+
+// ---- Bulk Edit ----
+let bulkSeriesTitle = '';
+let bulkLibraryRootID = 0;
+let bulkTracksData = null;
+
+function openBulkEdit(title, libRootID) {
+    bulkSeriesTitle = title;
+    bulkLibraryRootID = libRootID;
+    bulkTracksData = null;
+
+    document.getElementById('bulkEditSeriesTitle').textContent = title;
+    document.getElementById('bulkEditLoading').style.display = '';
+    document.getElementById('bulkEditContent').style.display = 'none';
+    document.getElementById('bulkEditError').style.display = 'none';
+    document.getElementById('bulkEditApplyBtn').style.display = 'none';
+
+    const modal = new bootstrap.Modal(document.getElementById('bulkEditModal'));
+    modal.show();
+
+    fetch('/api/series/tracks?title=' + encodeURIComponent(title) + '&library_root_id=' + libRootID)
+        .then(r => {
+            if (!r.ok) return r.text().then(t => { throw new Error(t); });
+            return r.json();
+        })
+        .then(data => {
+            bulkTracksData = data;
+            renderBulkEditContent(data);
+        })
+        .catch(err => {
+            document.getElementById('bulkEditLoading').style.display = 'none';
+            const errEl = document.getElementById('bulkEditError');
+            errEl.textContent = 'Error loading track info: ' + err.message;
+            errEl.style.display = '';
+        });
+}
+
+function renderBulkEditContent(data) {
+    document.getElementById('bulkEditLoading').style.display = 'none';
+    document.getElementById('bulkEditContent').style.display = '';
+    document.getElementById('bulkEditApplyBtn').style.display = '';
+
+    document.getElementById('bulkEditEpisodeCount').textContent =
+        data.episode_count + ' episode' + (data.episode_count !== 1 ? 's' : '') + ' in this series.';
+
+    const audioBox = document.getElementById('audioLangCheckboxes');
+    audioBox.innerHTML = '';
+    if (data.audio_languages && data.audio_languages.length > 0) {
+        document.getElementById('noAudioLangs').style.display = 'none';
+        data.audio_languages.forEach(lang => {
+            const label = document.createElement('label');
+            label.className = 'badge d-flex align-items-center gap-1 px-2 py-1';
+            label.style.cssText = 'background:#313244;color:#cdd6f4;cursor:pointer;font-size:0.8rem;border:1px solid #45475a;';
+            label.innerHTML = `<input type="checkbox" class="audio-lang-cb" value="${lang}" checked style="margin:0;"> ${langLabel(lang)}`;
+            audioBox.appendChild(label);
+        });
+    } else {
+        document.getElementById('noAudioLangs').style.display = '';
+    }
+
+    const subRows = document.getElementById('subLangRows');
+    subRows.innerHTML = '';
+    if (data.subtitle_languages && data.subtitle_languages.length > 0) {
+        document.getElementById('noSubLangs').style.display = 'none';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'd-flex gap-2 mb-1 px-1';
+        hdr.style.cssText = 'font-size:0.75rem;color:#6c7086;';
+        hdr.innerHTML = `
+            <div style="flex:1;">Language</div>
+            <div style="width:80px;text-align:center;">
+                <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;" title="Toggle all Keep">
+                    <input type="checkbox" id="keepAllCb" checked> Keep
+                </label>
+            </div>
+            <div style="width:80px;text-align:center;">
+                <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;" title="Toggle all Extract">
+                    <input type="checkbox" id="extractAllCb"> Extract
+                </label>
+            </div>`;
+        subRows.appendChild(hdr);
+
+        data.subtitle_languages.forEach(lang => {
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 mb-1 px-1 py-1 rounded';
+            row.style.cssText = 'background:#181825;border:1px solid #313244;font-size:0.85rem;';
+            row.innerHTML = `
+                <div style="flex:1;">${langLabel(lang)}</div>
+                <div style="width:80px;text-align:center;">
+                    <label style="display:flex;align-items:center;justify-content:center;padding:4px 8px;cursor:pointer;min-height:32px;margin:0;">
+                        <input type="checkbox" class="sub-keep-cb" value="${lang}" checked>
+                    </label>
+                </div>
+                <div style="width:80px;text-align:center;">
+                    <label style="display:flex;align-items:center;justify-content:center;padding:4px 8px;cursor:pointer;min-height:32px;margin:0;">
+                        <input type="checkbox" class="sub-extract-cb" value="${lang}">
+                    </label>
+                </div>`;
+            subRows.appendChild(row);
+        });
+        document.getElementById('keepAllCb').addEventListener('change', function() {
+            document.querySelectorAll('.sub-keep-cb').forEach(cb => { cb.checked = this.checked; });
+            updateBulkPreview();
+        });
+        document.getElementById('extractAllCb').addEventListener('change', function() {
+            document.querySelectorAll('.sub-extract-cb').forEach(cb => { cb.checked = this.checked; });
+            updateBulkPreview();
+        });
+    } else {
+        document.getElementById('noSubLangs').style.display = '';
+    }
+
+    if (data.has_image_based_subtitle) {
+        document.getElementById('imageSubWarning').style.display = '';
+    }
+
+    updateBulkPreview();
+
+    document.querySelectorAll('.audio-lang-cb, .sub-keep-cb, .sub-extract-cb').forEach(cb => {
+        cb.addEventListener('change', updateBulkPreview);
+    });
+}
+
+function updateBulkPreview() {
+    const keepAudio = [...document.querySelectorAll('.audio-lang-cb:checked')].map(c => c.value);
+    const keepSub = [...document.querySelectorAll('.sub-keep-cb:checked')].map(c => c.value);
+    const extractSub = [...document.querySelectorAll('.sub-extract-cb:checked')].map(c => c.value);
+
+    const allAudio = [...document.querySelectorAll('.audio-lang-cb')].map(c => c.value);
+    const allSub = [...document.querySelectorAll('.sub-keep-cb')].map(c => c.value);
+
+    const removeAudio = allAudio.filter(l => !keepAudio.includes(l));
+    const removeSub = allSub.filter(l => !keepSub.includes(l));
+
+    let html = '<strong style="color:#cba6f7;">Preview of operations per episode:</strong><ul class="mb-0 mt-1" style="padding-left:1.2rem;">';
+    if (removeAudio.length > 0) {
+        html += `<li>Remove audio tracks in: <strong>${removeAudio.map(langLabel).join(', ')}</strong></li>`;
+    } else {
+        html += '<li class="text-muted-sa">No audio tracks will be removed</li>';
+    }
+    if (extractSub.length > 0) {
+        html += `<li>Extract subtitle tracks (text-based) in: <strong>${extractSub.map(langLabel).join(', ')}</strong></li>`;
+    }
+    if (removeSub.length > 0) {
+        html += `<li>Remove subtitle tracks in: <strong>${removeSub.map(langLabel).join(', ')}</strong></li>`;
+    } else {
+        html += '<li class="text-muted-sa">No subtitle tracks will be removed</li>';
+    }
+    html += '</ul>';
+
+    document.getElementById('bulkEditPreview').innerHTML = html;
+}
+
+function langLabel(code) {
+    const names = {
+        eng: 'English', fra: 'French', fre: 'French', deu: 'German', ger: 'German',
+        spa: 'Spanish', ita: 'Italian', por: 'Portuguese', rus: 'Russian', jpn: 'Japanese',
+        kor: 'Korean', zho: 'Chinese', chi: 'Chinese', ara: 'Arabic', hin: 'Hindi',
+        tur: 'Turkish', pol: 'Polish', nld: 'Dutch', dut: 'Dutch', swe: 'Swedish',
+        nor: 'Norwegian', dan: 'Danish', fin: 'Finnish', ces: 'Czech', cze: 'Czech',
+        hun: 'Hungarian', ron: 'Romanian', rum: 'Romanian', bul: 'Bulgarian', hrv: 'Croatian',
+        srp: 'Serbian', slv: 'Slovenian', ukr: 'Ukrainian', ell: 'Greek', gre: 'Greek',
+        heb: 'Hebrew', tha: 'Thai', vie: 'Vietnamese', ind: 'Indonesian', msa: 'Malay',
+        may: 'Malay', cat: 'Catalan', lat: 'Latin', und: 'Undefined',
+    };
+    const label = names[code.toLowerCase()] || code.toUpperCase();
+    return `${label} <span style="color:#6c7086;font-size:0.75rem;">(${code})</span>`;
+}
+
+function applyBulkEdit() {
+    const keepAudio = [...document.querySelectorAll('.audio-lang-cb:checked')].map(c => c.value);
+    const keepSub = [...document.querySelectorAll('.sub-keep-cb:checked')].map(c => c.value);
+    const extractSub = [...document.querySelectorAll('.sub-extract-cb:checked')].map(c => c.value);
+
+    const allAudio = [...document.querySelectorAll('.audio-lang-cb')].map(c => c.value);
+    const allSub = [...document.querySelectorAll('.sub-keep-cb')].map(c => c.value);
+    const removeAudio = allAudio.filter(l => !keepAudio.includes(l));
+    const removeSub = allSub.filter(l => !keepSub.includes(l));
+
+    if (removeAudio.length === 0 && removeSub.length === 0 && extractSub.length === 0) {
+        alert('No operations selected. Please uncheck some languages or select subtitles to extract.');
+        return;
+    }
+
+    const episodeCount = bulkTracksData ? bulkTracksData.episode_count : '?';
+    if (!confirm(`Apply bulk operations to ${episodeCount} episode(s) in "${bulkSeriesTitle}"?\n\nThis will create jobs to:\n` +
+        (removeAudio.length > 0 ? `• Remove audio tracks: ${removeAudio.join(', ')}\n` : '') +
+        (extractSub.length > 0 ? `• Extract subtitles: ${extractSub.join(', ')}\n` : '') +
+        (removeSub.length > 0 ? `• Remove subtitle tracks: ${removeSub.join(', ')}\n` : '') +
+        '\nThis cannot be undone.')) {
+        return;
+    }
+
+    const btn = document.getElementById('bulkEditApplyBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Applying...';
+
+    fetch('/api/bulk-jobs/series', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            series_title: bulkSeriesTitle,
+            library_root_id: bulkLibraryRootID,
+            keep_audio_languages: keepAudio,
+            keep_subtitle_languages: keepSub,
+            extract_subtitle_languages: extractSub,
+        })
+    })
+    .then(r => {
+        if (!r.ok) return r.text().then(t => { throw new Error(t); });
+        return r.json();
+    })
+    .then(data => {
+        const results = data.results || [];
+        const queued = results.filter(r => r.job_id).length;
+        const skipped = results.filter(r => r.skipped).length;
+        results.filter(r => r.job_id).forEach(r => trackJobForFailure(r.job_id));
+        bootstrap.Modal.getInstance(document.getElementById('bulkEditModal')).hide();
+        queueToast(
+            `Bulk edit queued: ${queued} job(s) created, ${skipped} episode(s) skipped.`,
+            'success', '/jobs', 'View Jobs'
+        );
+        window.location.reload();
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Apply to All Episodes';
+        showToast('Error applying bulk edit: ' + _escHtml(err.message), 'danger');
+    });
+}
+</script>
+{{end}}

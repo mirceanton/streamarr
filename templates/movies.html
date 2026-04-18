@@ -31,6 +31,7 @@
                     <th class="sortable" onclick="sortTable(this)">Subs <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th class="sortable" onclick="sortTable(this)">Ext. Subs <i class="sort-icon bi bi-arrow-down-up"></i></th>
                     <th class="sortable" onclick="sortTable(this)">Status <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th style="width:3rem;"></th>
                 </tr>
             </thead>
             <tbody>
@@ -53,6 +54,11 @@
                         {{else}}
                         <span class="badge bg-secondary" style="font-size:0.7rem;">OK</span>
                         {{end}}
+                    </td>
+                    <td onclick="event.stopPropagation()">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="rescanFile({{.ID}}, this)" title="Rescan this file">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
                     </td>
                 </tr>
                 {{end}}
