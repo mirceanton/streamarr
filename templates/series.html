@@ -162,13 +162,19 @@
                         <div id="noAudioLangs" class="text-muted-sa" style="display:none;font-size:0.85rem;">No audio tracks found across episodes.</div>
                     </div>
                     <div class="mb-3">
-                        <h6 class="mb-2"><i class="bi bi-badge-cc me-2"></i>Subtitle Tracks</h6>
+                        <h6 class="mb-2"><i class="bi bi-badge-cc me-2"></i>Embedded Subtitle Tracks</h6>
                         <p class="text-muted-sa" style="font-size:0.8rem;">Choose which subtitle languages to keep and which to extract as sidecar files before removing.</p>
                         <div id="subLangRows"></div>
-                        <div id="noSubLangs" class="text-muted-sa" style="display:none;font-size:0.85rem;">No subtitle tracks found across episodes.</div>
+                        <div id="noSubLangs" class="text-muted-sa" style="display:none;font-size:0.85rem;">No embedded subtitle tracks found across episodes.</div>
                         <div id="imageSubWarning" class="mt-2" style="display:none;">
                             <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Image-based subtitles (PGS/VOBSUB) cannot be extracted as text.</span>
                         </div>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="mb-2"><i class="bi bi-file-earmark-text me-2"></i>External Subtitle Files</h6>
+                        <p class="text-muted-sa" style="font-size:0.8rem;">Choose what to do with external subtitle sidecar files found alongside episodes.</p>
+                        <div id="extSubLangRows"></div>
+                        <div id="noExtSubLangs" class="text-muted-sa" style="display:none;font-size:0.85rem;">No external subtitle files found across episodes.</div>
                     </div>
                     <div id="bulkEditPreview" class="mt-3 p-2 rounded" style="background:#181825;border:1px solid #45475a;font-size:0.82rem;"></div>
                 </div>
@@ -316,6 +322,85 @@ function renderBulkEditContent(data) {
         document.getElementById('imageSubWarning').style.display = '';
     }
 
+    const extSubRows = document.getElementById('extSubLangRows');
+    extSubRows.innerHTML = '';
+    if (data.external_subtitle_languages && data.external_subtitle_languages.length > 0) {
+        document.getElementById('noExtSubLangs').style.display = 'none';
+
+        const hdr = document.createElement('div');
+        hdr.className = 'd-flex gap-2 mb-1 px-1';
+        hdr.style.cssText = 'font-size:0.75rem;color:#6c7086;';
+        hdr.innerHTML = `
+            <div style="flex:1;">Language</div>
+            <div style="width:80px;text-align:center;">
+                <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;" title="Toggle all Embed">
+                    <input type="checkbox" id="extEmbedAllCb"> Embed
+                </label>
+            </div>
+            <div style="width:80px;text-align:center;">
+                <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;" title="Toggle all Delete">
+                    <input type="checkbox" id="extDeleteAllCb"> Delete
+                </label>
+            </div>`;
+        extSubRows.appendChild(hdr);
+
+        data.external_subtitle_languages.forEach(lang => {
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center gap-2 mb-1 px-1 py-1 rounded';
+            row.style.cssText = 'background:#181825;border:1px solid #313244;font-size:0.85rem;';
+            row.innerHTML = `
+                <div style="flex:1;">${langLabel(lang)}</div>
+                <div style="width:80px;text-align:center;">
+                    <label style="display:flex;align-items:center;justify-content:center;padding:4px 8px;cursor:pointer;min-height:32px;margin:0;">
+                        <input type="checkbox" class="ext-sub-embed-cb" value="${lang}">
+                    </label>
+                </div>
+                <div style="width:80px;text-align:center;">
+                    <label style="display:flex;align-items:center;justify-content:center;padding:4px 8px;cursor:pointer;min-height:32px;margin:0;">
+                        <input type="checkbox" class="ext-sub-delete-cb" value="${lang}">
+                    </label>
+                </div>`;
+            extSubRows.appendChild(row);
+        });
+
+        // Mutual exclusivity per row
+        extSubRows.querySelectorAll('.ext-sub-embed-cb').forEach(cb => {
+            cb.addEventListener('change', function() {
+                if (this.checked) {
+                    extSubRows.querySelector(`.ext-sub-delete-cb[value="${this.value}"]`).checked = false;
+                }
+                updateBulkPreview();
+            });
+        });
+        extSubRows.querySelectorAll('.ext-sub-delete-cb').forEach(cb => {
+            cb.addEventListener('change', function() {
+                if (this.checked) {
+                    extSubRows.querySelector(`.ext-sub-embed-cb[value="${this.value}"]`).checked = false;
+                }
+                updateBulkPreview();
+            });
+        });
+
+        document.getElementById('extEmbedAllCb').addEventListener('change', function() {
+            document.querySelectorAll('.ext-sub-embed-cb').forEach(cb => { cb.checked = this.checked; });
+            if (this.checked) {
+                document.querySelectorAll('.ext-sub-delete-cb').forEach(cb => { cb.checked = false; });
+                document.getElementById('extDeleteAllCb').checked = false;
+            }
+            updateBulkPreview();
+        });
+        document.getElementById('extDeleteAllCb').addEventListener('change', function() {
+            document.querySelectorAll('.ext-sub-delete-cb').forEach(cb => { cb.checked = this.checked; });
+            if (this.checked) {
+                document.querySelectorAll('.ext-sub-embed-cb').forEach(cb => { cb.checked = false; });
+                document.getElementById('extEmbedAllCb').checked = false;
+            }
+            updateBulkPreview();
+        });
+    } else {
+        document.getElementById('noExtSubLangs').style.display = '';
+    }
+
     updateBulkPreview();
 
     document.querySelectorAll('.audio-lang-cb, .sub-keep-cb, .sub-extract-cb').forEach(cb => {
@@ -327,6 +412,8 @@ function updateBulkPreview() {
     const keepAudio = [...document.querySelectorAll('.audio-lang-cb:checked')].map(c => c.value);
     const keepSub = [...document.querySelectorAll('.sub-keep-cb:checked')].map(c => c.value);
     const extractSub = [...document.querySelectorAll('.sub-extract-cb:checked')].map(c => c.value);
+    const embedExtSub = [...document.querySelectorAll('.ext-sub-embed-cb:checked')].map(c => c.value);
+    const deleteExtSub = [...document.querySelectorAll('.ext-sub-delete-cb:checked')].map(c => c.value);
 
     const allAudio = [...document.querySelectorAll('.audio-lang-cb')].map(c => c.value);
     const allSub = [...document.querySelectorAll('.sub-keep-cb')].map(c => c.value);
@@ -346,7 +433,13 @@ function updateBulkPreview() {
     if (removeSub.length > 0) {
         html += `<li>Remove subtitle tracks in: <strong>${removeSub.map(langLabel).join(', ')}</strong></li>`;
     } else {
-        html += '<li class="text-muted-sa">No subtitle tracks will be removed</li>';
+        html += '<li class="text-muted-sa">No embedded subtitle tracks will be removed</li>';
+    }
+    if (embedExtSub.length > 0) {
+        html += `<li>Embed external subtitle files in: <strong>${embedExtSub.map(langLabel).join(', ')}</strong> (sidecar files will be deleted after embedding)</li>`;
+    }
+    if (deleteExtSub.length > 0) {
+        html += `<li>Delete external subtitle files in: <strong>${deleteExtSub.map(langLabel).join(', ')}</strong></li>`;
     }
     html += '</ul>';
 
@@ -373,22 +466,26 @@ function applyBulkEdit() {
     const keepAudio = [...document.querySelectorAll('.audio-lang-cb:checked')].map(c => c.value);
     const keepSub = [...document.querySelectorAll('.sub-keep-cb:checked')].map(c => c.value);
     const extractSub = [...document.querySelectorAll('.sub-extract-cb:checked')].map(c => c.value);
+    const embedExtSub = [...document.querySelectorAll('.ext-sub-embed-cb:checked')].map(c => c.value);
+    const deleteExtSub = [...document.querySelectorAll('.ext-sub-delete-cb:checked')].map(c => c.value);
 
     const allAudio = [...document.querySelectorAll('.audio-lang-cb')].map(c => c.value);
     const allSub = [...document.querySelectorAll('.sub-keep-cb')].map(c => c.value);
     const removeAudio = allAudio.filter(l => !keepAudio.includes(l));
     const removeSub = allSub.filter(l => !keepSub.includes(l));
 
-    if (removeAudio.length === 0 && removeSub.length === 0 && extractSub.length === 0) {
-        alert('No operations selected. Please uncheck some languages or select subtitles to extract.');
+    if (removeAudio.length === 0 && removeSub.length === 0 && extractSub.length === 0 && embedExtSub.length === 0 && deleteExtSub.length === 0) {
+        alert('No operations selected. Please uncheck some languages or select subtitles to extract/embed/delete.');
         return;
     }
 
     const episodeCount = bulkTracksData ? bulkTracksData.episode_count : '?';
     if (!confirm(`Apply bulk operations to ${episodeCount} episode(s) in "${bulkSeriesTitle}"?\n\nThis will create jobs to:\n` +
         (removeAudio.length > 0 ? `• Remove audio tracks: ${removeAudio.join(', ')}\n` : '') +
-        (extractSub.length > 0 ? `• Extract subtitles: ${extractSub.join(', ')}\n` : '') +
-        (removeSub.length > 0 ? `• Remove subtitle tracks: ${removeSub.join(', ')}\n` : '') +
+        (extractSub.length > 0 ? `• Extract embedded subtitles: ${extractSub.join(', ')}\n` : '') +
+        (removeSub.length > 0 ? `• Remove embedded subtitle tracks: ${removeSub.join(', ')}\n` : '') +
+        (embedExtSub.length > 0 ? `• Embed external subtitles: ${embedExtSub.join(', ')}\n` : '') +
+        (deleteExtSub.length > 0 ? `• Delete external subtitle files: ${deleteExtSub.join(', ')}\n` : '') +
         '\nThis cannot be undone.')) {
         return;
     }
@@ -406,6 +503,8 @@ function applyBulkEdit() {
             keep_audio_languages: keepAudio,
             keep_subtitle_languages: keepSub,
             extract_subtitle_languages: extractSub,
+            embed_external_subtitle_languages: embedExtSub,
+            delete_external_subtitle_languages: deleteExtSub,
         })
     })
     .then(r => {
