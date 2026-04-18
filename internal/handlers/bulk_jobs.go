@@ -16,11 +16,11 @@ import (
 
 // SeriesTracksResponse is returned by GetSeriesTracksHandler.
 type SeriesTracksResponse struct {
-	EpisodeCount                int      `json:"episode_count"`
-	AudioLanguages              []string `json:"audio_languages"`
-	SubtitleLanguages           []string `json:"subtitle_languages"`
-	ExternalSubtitleLanguages   []string `json:"external_subtitle_languages"`
-	HasImageBasedSubtitle       bool     `json:"has_image_based_subtitle"`
+	EpisodeCount              int      `json:"episode_count"`
+	AudioLanguages            []string `json:"audio_languages"`
+	SubtitleLanguages         []string `json:"subtitle_languages"`
+	ExternalSubtitleLanguages []string `json:"external_subtitle_languages"`
+	HasImageBasedSubtitle     bool     `json:"has_image_based_subtitle"`
 }
 
 // GetSeriesTracksHandler returns aggregate track language info for all episodes in a series.
