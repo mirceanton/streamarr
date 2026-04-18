@@ -104,6 +104,7 @@ func formatSize(bytes int64) string {
 
 func languageName(code string) string {
 	languages := map[string]string{
+		// ISO 639-2 (3-letter) codes
 		"eng": "English",
 		"fra": "French",
 		"fre": "French",
@@ -152,6 +153,42 @@ func languageName(code string) string {
 		"lat": "Latin",
 		"und": "Undefined",
 		"":    "Unknown",
+		// ISO 639-1 (2-letter) codes — used by many external subtitle filenames
+		"en": "English",
+		"fr": "French",
+		"de": "German",
+		"es": "Spanish",
+		"it": "Italian",
+		"pt": "Portuguese",
+		"ru": "Russian",
+		"ja": "Japanese",
+		"ko": "Korean",
+		"zh": "Chinese",
+		"ar": "Arabic",
+		"hi": "Hindi",
+		"tr": "Turkish",
+		"pl": "Polish",
+		"nl": "Dutch",
+		"sv": "Swedish",
+		"no": "Norwegian",
+		"da": "Danish",
+		"fi": "Finnish",
+		"cs": "Czech",
+		"hu": "Hungarian",
+		"ro": "Romanian",
+		"bg": "Bulgarian",
+		"hr": "Croatian",
+		"sr": "Serbian",
+		"sl": "Slovenian",
+		"uk": "Ukrainian",
+		"el": "Greek",
+		"he": "Hebrew",
+		"th": "Thai",
+		"vi": "Vietnamese",
+		"id": "Indonesian",
+		"ms": "Malay",
+		"ca": "Catalan",
+		"la": "Latin",
 	}
 	if name, ok := languages[strings.ToLower(code)]; ok {
 		return name

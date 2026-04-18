@@ -172,7 +172,7 @@
                     <td>
                         {{codecName .Codec}}
                         {{if isImageSub .Codec}}
-                        <span class="badge bg-warning text-dark" style="font-size:0.65rem;" title="Image-based subtitle, cannot be extracted"><i class="bi bi-exclamation-triangle"></i> Image</span>
+                        <span class="badge bg-warning text-dark" style="font-size:0.65rem;" title="Image-based subtitle (bitmap)"><i class="bi bi-image"></i> Image</span>
                         {{end}}
                     </td>
                     <td>{{langName .Language}}</td>
@@ -183,11 +183,9 @@
                         {{if .SDH}}<span class="badge bg-secondary" style="font-size:0.7rem;">SDH</span>{{end}}
                     </td>
                     <td>
-                        {{if not (isImageSub .Codec)}}
                         <button class="btn btn-outline-sa btn-sm me-1" onclick="addExtractOp({{.StreamIndex}}, 'Extract sub: {{codecName .Codec}} ({{langName .Language}})')">
                             <i class="bi bi-box-arrow-up-right"></i> Extract
                         </button>
-                        {{end}}
                         <button class="btn btn-outline-danger btn-sm" onclick="addRemoveOp('remove_subtitle', {{.StreamIndex}}, 'Remove sub: {{codecName .Codec}} ({{langName .Language}})')">
                             <i class="bi bi-trash3"></i> Remove
                         </button>
