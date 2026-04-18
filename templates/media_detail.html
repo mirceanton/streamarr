@@ -156,6 +156,26 @@
                         {{if .Forced}}<span class="badge bg-secondary" style="font-size:0.7rem;">Forced</span>{{end}}
                     </td>
                     <td>
+                        {{if and .Language (ne .Language "und")}}
+                        {{if eq $.File.LibraryType "movies"}}
+                        <form hx-post="/api/overrides/movie/{{$.File.ID}}/add-lang" hx-swap="none" style="display:inline;">
+                            <input type="hidden" name="language" value="{{.Language}}">
+                            <button type="submit" class="btn btn-outline-sa btn-sm me-1" title="Add {{langName .Language}} to preferred languages for this movie">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                        </form>
+                        {{else}}
+                        <form hx-post="/api/overrides/series/add-lang" hx-swap="none" style="display:inline;">
+                            <input type="hidden" name="library_root_id" value="{{$.File.LibraryRootID}}">
+                            <input type="hidden" name="title" value="{{$.File.Title}}">
+                            <input type="hidden" name="media_file_id" value="{{$.File.ID}}">
+                            <input type="hidden" name="language" value="{{.Language}}">
+                            <button type="submit" class="btn btn-outline-sa btn-sm me-1" title="Add {{langName .Language}} to preferred languages for this series">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                        </form>
+                        {{end}}
+                        {{end}}
                         {{if gt $audioCount 1}}
                         <button class="btn btn-outline-danger btn-sm" onclick="addRemoveOp('remove_audio', {{.StreamIndex}}, 'Remove audio: {{codecName .Codec}} ({{langName .Language}})')">
                             <i class="bi bi-trash3"></i> Remove

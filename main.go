@@ -69,9 +69,11 @@ func main() {
 	r.Post("/api/media/{id}/rescan", handlers.RescanFileHandler)
 	r.Post("/api/overrides/movie/{id}", handlers.SetMovieLanguageOverrideHandler)
 	r.Delete("/api/overrides/movie/{id}", handlers.DeleteMovieLanguageOverrideHandler)
+	r.Post("/api/overrides/movie/{id}/add-lang", handlers.AddMovieLanguageOverrideHandler)
 	r.Post("/api/overrides/series", handlers.SetSeriesLanguageOverrideHandler)
 	r.Delete("/api/overrides/series", handlers.DeleteSeriesLanguageOverrideHandler)
 	r.Post("/api/overrides/series/delete", handlers.DeleteSeriesLanguageOverridePostHandler)
+	r.Post("/api/overrides/series/add-lang", handlers.AddSeriesLanguageOverrideHandler)
 
 	log.Printf("StreamArr starting on port %s", port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), r); err != nil {
