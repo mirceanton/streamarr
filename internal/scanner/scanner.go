@@ -178,20 +178,21 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 		return fmt.Errorf("probe: %w", err)
 	}
 
-	needsAttention := checkNeedsAttention(audioTracks, subtitleTracks, effectiveLangs)
+	needsAttention, attentionReasons := ComputeAttentionReasons(audioTracks, subtitleTracks, effectiveLangs)
 
 	mf := &models.MediaFile{
-		LibraryRootID:  root.ID,
-		Path:           path,
-		Filename:       filename,
-		Title:          title,
-		Year:           year,
-		Season:         season,
-		Episode:        episode,
-		SizeBytes:      info.Size(),
-		Container:      container,
-		ScannedAt:      time.Now(),
-		NeedsAttention: needsAttention,
+		LibraryRootID:    root.ID,
+		Path:             path,
+		Filename:         filename,
+		Title:            title,
+		Year:             year,
+		Season:           season,
+		Episode:          episode,
+		SizeBytes:        info.Size(),
+		Container:        container,
+		ScannedAt:        time.Now(),
+		NeedsAttention:   needsAttention,
+		AttentionReasons: attentionReasons,
 	}
 
 	fileID, err := db.UpsertMediaFile(mf)
@@ -274,37 +275,49 @@ func parseSeasonEpisode(filename string) (int, int) {
 	return 0, 0
 }
 
-func checkNeedsAttention(audio []models.AudioTrack, subs []models.SubtitleTrack, preferredLangs []string) bool {
+// ComputeAttentionReasons returns whether a file needs attention and a human-readable description of why.
+func ComputeAttentionReasons(audio []models.AudioTrack, subs []models.SubtitleTrack, preferredLangs []string) (bool, string) {
 	preferred := make(map[string]bool)
 	for _, l := range preferredLangs {
 		preferred[strings.ToLower(l)] = true
 	}
-	// Also always allow "und" (undefined) for audio
 	preferred["und"] = true
 	preferred[""] = true
 
+	var audioBad []string
 	for _, a := range audio {
 		lang := strings.ToLower(a.Language)
 		if !preferred[lang] {
-			return true
+			audioBad = append(audioBad, fmt.Sprintf("stream %d (%s)", a.StreamIndex, a.Language))
 		}
 	}
 
-	// For subtitles, "und" is not automatically allowed
 	subPreferred := make(map[string]bool)
 	for _, l := range preferredLangs {
 		subPreferred[strings.ToLower(l)] = true
 	}
 	subPreferred[""] = true
 
+	var subBad []string
 	for _, s := range subs {
 		lang := strings.ToLower(s.Language)
 		if !subPreferred[lang] && lang != "und" {
-			return true
+			subBad = append(subBad, fmt.Sprintf("stream %d (%s)", s.StreamIndex, s.Language))
 		}
 	}
 
-	return false
+	if len(audioBad) == 0 && len(subBad) == 0 {
+		return false, ""
+	}
+
+	var parts []string
+	if len(audioBad) > 0 {
+		parts = append(parts, "Non-preferred audio: "+strings.Join(audioBad, ", "))
+	}
+	if len(subBad) > 0 {
+		parts = append(parts, "Non-preferred subtitles: "+strings.Join(subBad, ", "))
+	}
+	return true, strings.Join(parts, "\n")
 }
 
 // subtitleFlagWords are parts of an external subtitle filename that indicate flags, not a language code.

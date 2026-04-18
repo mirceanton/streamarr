@@ -41,7 +41,7 @@
                     <td class="stream-count" data-sort-value="{{len .AudioTracks}}">{{len .AudioTracks}} audio &middot; {{len .SubtitleTracks}} subs</td>
                     <td data-sort-value="{{if .NeedsAttention}}1{{else}}0{{end}}">
                         {{if .NeedsAttention}}
-                        <span class="badge badge-attention">Needs Attention</span>
+                        <span class="badge badge-attention" title="{{.AttentionReasons}}">Needs Attention</span>
                         {{else}}
                         <span class="badge bg-secondary" style="font-size:0.7rem;">OK</span>
                         {{end}}

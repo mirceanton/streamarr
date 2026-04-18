@@ -25,7 +25,8 @@ type MediaFile struct {
 	SizeBytes      int64
 	Container      string
 	ScannedAt      time.Time
-	NeedsAttention bool
+	NeedsAttention  bool
+	AttentionReasons string
 
 	// Joined fields (not always populated)
 	AudioTracks           []AudioTrack
@@ -104,12 +105,13 @@ type Operation struct {
 
 // Series groups episodes for the shows view.
 type Series struct {
-	Title            string
-	Path             string
-	LibraryRootID    int64
-	Episodes         []MediaFile
-	NeedsAttention   bool
-	LanguageOverride []string // nil means use global setting
+	Title                string
+	Path                 string
+	LibraryRootID        int64
+	Episodes             []MediaFile
+	NeedsAttention       bool
+	AttentionEpisodeCount int
+	LanguageOverride     []string // nil means use global setting
 }
 
 // ScanStatus tracks whether a scan is in progress.
