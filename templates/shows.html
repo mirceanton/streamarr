@@ -301,11 +301,22 @@ function renderBulkEditContent(data) {
     if (data.subtitle_languages && data.subtitle_languages.length > 0) {
         document.getElementById('noSubLangs').style.display = 'none';
 
-        // Header
+        // Header with toggle-all checkboxes
         const hdr = document.createElement('div');
         hdr.className = 'd-flex gap-2 mb-1 px-1';
         hdr.style.cssText = 'font-size:0.75rem;color:#6c7086;';
-        hdr.innerHTML = '<div style="flex:1;">Language</div><div style="width:80px;text-align:center;">Keep</div><div style="width:80px;text-align:center;">Extract</div>';
+        hdr.innerHTML = `
+            <div style="flex:1;">Language</div>
+            <div style="width:80px;text-align:center;">
+                <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;" title="Toggle all Keep">
+                    <input type="checkbox" id="keepAllCb" checked> Keep
+                </label>
+            </div>
+            <div style="width:80px;text-align:center;">
+                <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;" title="Toggle all Extract">
+                    <input type="checkbox" id="extractAllCb"> Extract
+                </label>
+            </div>`;
         subRows.appendChild(hdr);
 
         data.subtitle_languages.forEach(lang => {
@@ -315,12 +326,25 @@ function renderBulkEditContent(data) {
             row.innerHTML = `
                 <div style="flex:1;">${langLabel(lang)}</div>
                 <div style="width:80px;text-align:center;">
-                    <input type="checkbox" class="sub-keep-cb" value="${lang}" checked>
+                    <label style="display:flex;align-items:center;justify-content:center;padding:4px 8px;cursor:pointer;min-height:32px;margin:0;">
+                        <input type="checkbox" class="sub-keep-cb" value="${lang}" checked>
+                    </label>
                 </div>
                 <div style="width:80px;text-align:center;">
-                    <input type="checkbox" class="sub-extract-cb" value="${lang}">
+                    <label style="display:flex;align-items:center;justify-content:center;padding:4px 8px;cursor:pointer;min-height:32px;margin:0;">
+                        <input type="checkbox" class="sub-extract-cb" value="${lang}">
+                    </label>
                 </div>`;
             subRows.appendChild(row);
+        });
+        // Toggle-all listeners for Keep and Extract columns
+        document.getElementById('keepAllCb').addEventListener('change', function() {
+            document.querySelectorAll('.sub-keep-cb').forEach(cb => { cb.checked = this.checked; });
+            updateBulkPreview();
+        });
+        document.getElementById('extractAllCb').addEventListener('change', function() {
+            document.querySelectorAll('.sub-extract-cb').forEach(cb => { cb.checked = this.checked; });
+            updateBulkPreview();
         });
     } else {
         document.getElementById('noSubLangs').style.display = '';
