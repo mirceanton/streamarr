@@ -18,7 +18,7 @@
     </div>
     <div class="d-flex align-items-center gap-2">
         {{if .NeedsAttention}}
-        <span class="badge badge-attention">Needs Attention</span>
+        <span class="badge badge-attention" title="{{.AttentionReasons}}">Needs Attention</span>
         {{end}}
         <button class="btn btn-outline-sa btn-sm" hx-post="/api/media/{{.ID}}/rescan" hx-swap="none"
             title="Re-probe file streams and update database">

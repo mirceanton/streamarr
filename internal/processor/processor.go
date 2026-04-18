@@ -149,44 +149,24 @@ func processJob(jobID int64) {
 		if len(mf.LanguageOverride) > 0 {
 			effectiveLangs = mf.LanguageOverride
 		}
-		needsAttention := false
-
-		preferred := make(map[string]bool)
-		for _, l := range effectiveLangs {
-			preferred[strings.ToLower(l)] = true
-		}
-		preferred["und"] = true
-		preferred[""] = true
 
 		for _, t := range audioTracks {
 			t.MediaFileID = mf.ID
 			db.InsertAudioTrack(&t)
-			lang := strings.ToLower(t.Language)
-			if !preferred[lang] {
-				needsAttention = true
-			}
 		}
-
-		subPreferred := make(map[string]bool)
-		for _, l := range effectiveLangs {
-			subPreferred[strings.ToLower(l)] = true
-		}
-		subPreferred[""] = true
 
 		for _, t := range subtitleTracks {
 			t.MediaFileID = mf.ID
 			db.InsertSubtitleTrack(&t)
-			lang := strings.ToLower(t.Language)
-			if !subPreferred[lang] && lang != "und" {
-				needsAttention = true
-			}
 		}
+
+		needsAttention, attentionReasons := scanner.ComputeAttentionReasons(audioTracks, subtitleTracks, effectiveLangs)
 
 		// Update file info
 		info, _ := os.Stat(mf.Path)
 		if info != nil {
-			db.DB.Exec(`UPDATE media_files SET size_bytes = ?, scanned_at = ?, needs_attention = ? WHERE id = ?`,
-				info.Size(), time.Now(), needsAttention, mf.ID)
+			db.DB.Exec(`UPDATE media_files SET size_bytes = ?, scanned_at = ?, needs_attention = ?, attention_reasons = ? WHERE id = ?`,
+				info.Size(), time.Now(), needsAttention, attentionReasons, mf.ID)
 		}
 	}
 
