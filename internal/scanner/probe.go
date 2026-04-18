@@ -134,6 +134,10 @@ func SubtitleExtension(codec string) string {
 		return "vtt"
 	case "mov_text":
 		return "srt"
+	case "hdmv_pgs_subtitle", "pgssub":
+		return "sup"
+	case "dvd_subtitle", "dvdsub":
+		return "sub"
 	default:
 		return "srt"
 	}
@@ -146,6 +150,7 @@ var externalSubtitleExts = map[string]bool{
 	".ssa": true,
 	".vtt": true,
 	".sub": true,
+	".sup": true,
 }
 
 // IsExternalSubtitleExt reports whether ext (e.g. ".srt") is a supported external subtitle extension.
