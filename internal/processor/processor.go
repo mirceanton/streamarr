@@ -21,10 +21,17 @@ var (
 	jobCh         = make(chan int64, 100)
 )
 
-// Start begins the background job processor.
+// Start begins the background job processor with the configured number of parallel workers.
 func Start() {
 	processorOnce.Do(func() {
-		go processLoop()
+		workers := db.GetParallelJobs()
+		if workers < 1 {
+			workers = 1
+		}
+		log.Printf("starting %d job worker(s)", workers)
+		for i := 0; i < workers; i++ {
+			go processLoop()
+		}
 	})
 }
 
