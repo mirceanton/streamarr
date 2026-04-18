@@ -2,13 +2,16 @@
 
 StreamArr is a self-hosted web application for managing audio and subtitle tracks in your media library. It scans your movies and TV shows, inspects every stream with ffprobe, and lets you queue ffmpeg jobs to remove or extract tracks directly from the browser.
 
+> [!WARNING]
+> **AI Slop / Vibe Coded Project** — This is project is "AI Slop". This is something that was "built" in a weekend with heavy AI assistance to scratch a personal itch. The code works for my use case, but it has not been hardened, audited, or battle-tested. Deploy at your own risk, preferably not exposed to the open internet. No warranties, no support guarantees, no promises.
+
 ## Features
 
 - **Library scanning**: Index movies and TV shows from configured folders
 - **Stream inspection**: View all audio and subtitle tracks per file (codec, language, channels, flags)
-- **Job queue**: Create ffmpeg jobs to remove audio tracks, remove subtitle tracks, or extract subtitles to sidecar files
+- **Stream management**: Manage audio and subtitle tracks per file (embed subs, extract subs, remove audio/subtitle stream etc.)
 - **Preferred languages**: Flag files that have no audio or subtitle track in your preferred languages
-- **Persistent state**: SQLite database — no external dependencies
+- **Preferred subtitle format**: Flag files that have no subtitle tracks in your preferred format
 
 ## Deployment
 
@@ -30,7 +33,7 @@ services:
 ```
 
 > [!IMPORTANT]
-> The container runs as UID/GID `8675`. Make sure the `/config` and `/media` mounts are readable (and writable for `/config`) by that user.
+> The container runs as UID/GID `1000`. Make sure the `/config` and `/media` mounts are readable (and writable for `/config`) by that user.
 
 ## Configuration
 
