@@ -182,7 +182,13 @@ func processJob(jobID int64) {
 			db.InsertSubtitleTrack(&t)
 		}
 
-		needsAttention, attentionReasons := scanner.ComputeAttentionReasons(audioTracks, subtitleTracks, effectiveLangs, effectiveSubtitleFormat)
+		// Refresh external subtitle file list before computing attention so external sub formats are checked.
+		extSubs, err := scanner.ScanExternalSubtitles(mf)
+		if err != nil {
+			log.Printf("scan external subtitles after job %d: %v", jobID, err)
+		}
+
+		needsAttention, attentionReasons := scanner.ComputeAttentionReasons(audioTracks, subtitleTracks, extSubs, effectiveLangs, effectiveSubtitleFormat)
 
 		// Update file info
 		info, _ := os.Stat(mf.Path)
@@ -190,11 +196,6 @@ func processJob(jobID int64) {
 			db.DB.Exec(`UPDATE media_files SET size_bytes = ?, scanned_at = ?, needs_attention = ?, attention_reasons = ? WHERE id = ?`,
 				info.Size(), time.Now(), needsAttention, attentionReasons, mf.ID)
 		}
-	}
-
-	// Refresh external subtitle file list (picks up any newly extracted sidecar files)
-	if err := scanner.ScanExternalSubtitles(mf); err != nil {
-		log.Printf("scan external subtitles after job %d: %v", jobID, err)
 	}
 
 	db.UpdateJobStatus(jobID, "done")
