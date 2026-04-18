@@ -71,6 +71,16 @@ func processJob(jobID int64) {
 		return
 	}
 
+	// Delete external subtitle files
+	for _, op := range ops {
+		if op.Type == "delete_external_subtitle" {
+			if err := os.Remove(op.SourcePath); err != nil {
+				failJob(jobID, fmt.Sprintf("delete external subtitle %s: %v", filepath.Base(op.SourcePath), err))
+				return
+			}
+		}
+	}
+
 	// Execute embed operations first — new streams are appended, so original indices stay valid
 	currentSubCount := len(mf.SubtitleTracks)
 	for _, op := range ops {
