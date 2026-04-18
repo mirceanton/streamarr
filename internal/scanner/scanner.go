@@ -88,6 +88,9 @@ func runScan(root *models.LibraryRoot, quickMode bool) error {
 		if !mediaExts[ext] {
 			return nil
 		}
+		if strings.Contains(filepath.Base(path), ".tmp.") {
+			return nil
+		}
 		if quickMode {
 			lastScanned, exists := scanTimes[path]
 			if exists && !info.ModTime().After(lastScanned) {
