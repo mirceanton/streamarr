@@ -334,7 +334,7 @@ func GetMediaFileByPath(path string) (*models.MediaFile, error) {
 }
 
 func UpsertMediaFile(f *models.MediaFile) (int64, error) {
-	res, err := DB.Exec(`INSERT INTO media_files (library_root_id, path, filename, title, year, season, episode, size_bytes, container, scanned_at, needs_attention, attention_reasons)
+	_, err := DB.Exec(`INSERT INTO media_files (library_root_id, path, filename, title, year, season, episode, size_bytes, container, scanned_at, needs_attention, attention_reasons)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(path) DO UPDATE SET
 			filename = excluded.filename,
@@ -353,19 +353,16 @@ func UpsertMediaFile(f *models.MediaFile) (int64, error) {
 		return 0, err
 	}
 
-	id, err := res.LastInsertId()
+	// LastInsertId is unreliable for ON CONFLICT DO UPDATE: when the upsert
+	// triggers an UPDATE instead of an INSERT, some SQLite driver versions
+	// return the rowid of the last INSERT on the connection (e.g. a job row)
+	// rather than the updated row's id. Always look up the row by path so
+	// we get the correct id regardless.
+	existing, err := GetMediaFileByPath(f.Path)
 	if err != nil {
 		return 0, err
 	}
-	if id == 0 {
-		// Was an update, get the existing ID
-		existing, err := GetMediaFileByPath(f.Path)
-		if err != nil {
-			return 0, err
-		}
-		id = existing.ID
-	}
-	return id, nil
+	return existing.ID, nil
 }
 
 func DeleteTracksForFile(fileID int64) error {
