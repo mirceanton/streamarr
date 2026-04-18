@@ -75,6 +75,10 @@ func main() {
 	r.Post("/api/overrides/series/delete", handlers.DeleteSeriesLanguageOverridePostHandler)
 	r.Post("/api/overrides/series/add-lang", handlers.AddSeriesLanguageOverrideHandler)
 
+	// Bulk operations
+	r.Get("/api/series/tracks", handlers.GetSeriesTracksHandler)
+	r.Post("/api/bulk-jobs/series", handlers.BulkJobsSeriesHandler)
+
 	log.Printf("StreamArr starting on port %s", port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), r); err != nil {
 		log.Fatalf("Server failed: %v", err)
