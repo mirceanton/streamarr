@@ -125,7 +125,7 @@ type BulkJobRequest struct {
 	SeriesTitle                  string        `json:"series_title"`
 	LibraryRootID                int64         `json:"library_root_id"`
 	KeepAudioLanguages           []string      `json:"keep_audio_languages"`
-	KeepSubtitleTracks           []TrackFilter `json:"keep_subtitle_tracks"`
+	RemoveSubtitleTracks         []TrackFilter `json:"remove_subtitle_tracks"`
 	ExtractSubtitleTracks        []TrackFilter `json:"extract_subtitle_tracks"`
 	EmbedExternalSubtitleTracks  []TrackFilter `json:"embed_external_subtitle_tracks"`
 	DeleteExternalSubtitleTracks []TrackFilter `json:"delete_external_subtitle_tracks"`
@@ -159,7 +159,7 @@ func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	keepAudio := toLangSet(req.KeepAudioLanguages)
-	keepSub := toTrackSet(req.KeepSubtitleTracks)
+	removeSub := toTrackSet(req.RemoveSubtitleTracks)
 	extractSub := toTrackSet(req.ExtractSubtitleTracks)
 	embedExtSub := toTrackSet(req.EmbedExternalSubtitleTracks)
 	deleteExtSub := toTrackSet(req.DeleteExternalSubtitleTracks)
@@ -184,7 +184,7 @@ func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		ops, skipReason := buildEpisodeOps(ep, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub, req.SetAudioLanguage)
+		ops, skipReason := buildEpisodeOps(ep, keepAudio, removeSub, extractSub, embedExtSub, deleteExtSub, req.SetAudioLanguage)
 		if len(ops) == 0 {
 			results = append(results, result{Filename: ep.Filename, Skipped: true, Reason: skipReason})
 			continue
@@ -207,7 +207,7 @@ func BulkJobsSeriesHandler(w http.ResponseWriter, r *http.Request) {
 
 // buildEpisodeOps generates the operations for a single episode given language+format keep/extract sets.
 // Returns the list of operations and, when the list is empty, a human-readable reason explaining why.
-func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedExtSub, deleteExtSub map[string]bool, setAudioLang string) ([]models.Operation, string) {
+func buildEpisodeOps(ep models.MediaFile, keepAudio, removeSub, extractSub, embedExtSub, deleteExtSub map[string]bool, setAudioLang string) ([]models.Operation, string) {
 	var ops []models.Operation
 	var skipReasons []string
 
@@ -270,7 +270,7 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 		}
 	}
 
-	// Embedded subtitles: extract (if requested), then remove (if not in keepSub).
+	// Embedded subtitles: extract (if requested), then remove (if in removeSub).
 	// Matching is by "lang:codec" key, supporting distinct handling per format.
 	if len(extractSub) > 0 {
 		for _, st := range ep.SubtitleTracks {
@@ -296,14 +296,14 @@ func buildEpisodeOps(ep models.MediaFile, keepAudio, keepSub, extractSub, embedE
 		}
 	}
 
-	if len(keepSub) > 0 {
+	if len(removeSub) > 0 {
 		for _, st := range ep.SubtitleTracks {
 			lang := st.Language
 			if lang == "" {
 				lang = "und"
 			}
 			trackKey := lang + ":" + strings.ToLower(st.Codec)
-			if !keepSub[trackKey] {
+			if removeSub[trackKey] {
 				ops = append(ops, models.Operation{
 					Type:        "remove_subtitle",
 					StreamIndex: st.StreamIndex,
