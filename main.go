@@ -89,6 +89,9 @@ func main() {
 	r.Get("/api/series/tracks", handlers.GetSeriesTracksHandler)
 	r.Post("/api/bulk-jobs/series", handlers.BulkJobsSeriesHandler)
 
+	// Metrics
+	r.Handle("/metrics", handlers.MetricsHandler())
+
 	log.Printf("StreamArr starting on port %s", port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), r); err != nil {
 		log.Fatalf("Server failed: %v", err)
