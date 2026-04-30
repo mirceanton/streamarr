@@ -62,7 +62,8 @@
                         {{else if eq .ActiveJobStatus "pending"}}
                         <span class="badge badge-status-pending" style="font-size:0.7rem;" title="A job is queued for this file"><i class="bi bi-clock me-1"></i>Queued</span>
                         {{else if .NeedsAttention}}
-                        <span class="badge badge-attention" title="{{.AttentionReasons}}">Needs Attention</span>
+                        <span class="badge badge-attention">Needs Attention</span>
+                        <div style="font-size:0.72rem;color:var(--sa-text-muted);margin-top:0.2rem;white-space:normal;">{{.AttentionReasons}}</div>
                         {{else}}
                         <span class="badge bg-secondary" style="font-size:0.7rem;">OK</span>
                         {{end}}
