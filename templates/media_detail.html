@@ -18,7 +18,7 @@
     </div>
     <div class="d-flex align-items-center gap-2">
         {{if .NeedsAttention}}
-        <span class="badge badge-attention" title="{{.AttentionReasons}}">Needs Attention</span>
+        <span class="badge badge-attention">Needs Attention</span>
         {{end}}
         <button class="btn btn-outline-sa btn-sm" hx-post="/api/media/{{.ID}}/rescan" hx-swap="none"
             title="Re-probe file streams and update database">
@@ -31,6 +31,13 @@
         </button>
     </div>
 </div>
+
+{{if .NeedsAttention}}
+<div class="alert mb-4" style="background-color:rgba(210,153,34,0.12);border:1px solid var(--sa-warning);color:var(--sa-text-primary);" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2" style="color:var(--sa-warning);"></i>
+    <strong>Needs Attention:</strong> {{.AttentionReasons}}
+</div>
+{{end}}
 
 <!-- File Info -->
 <div class="card mb-4">
