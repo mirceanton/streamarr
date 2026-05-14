@@ -85,6 +85,14 @@ func main() {
 	r.Post("/api/overrides/series/subtitle-format", handlers.SetSeriesSubtitleFormatOverrideHandler)
 	r.Post("/api/overrides/series/subtitle-format/delete", handlers.DeleteSeriesSubtitleFormatOverridePostHandler)
 
+	// Music
+	r.Get("/music", handlers.MusicHandler)
+	r.Get("/music/{albumKey}", handlers.AlbumTracksHandler)
+	r.Post("/api/settings/audio-format", handlers.UpdateAudioFormatHandler)
+	r.Post("/api/settings/min-bitrate", handlers.UpdateMinBitrateHandler)
+	r.Post("/api/overrides/album/audio-format", handlers.SetAlbumAudioFormatOverrideHandler)
+	r.Post("/api/overrides/album/audio-format/delete", handlers.DeleteAlbumAudioFormatOverridePostHandler)
+
 	// Bulk operations
 	r.Get("/api/series/tracks", handlers.GetSeriesTracksHandler)
 	r.Post("/api/bulk-jobs/series", handlers.BulkJobsSeriesHandler)

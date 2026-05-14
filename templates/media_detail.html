@@ -7,6 +7,16 @@
         <h1>
             {{if eq .LibraryType "movies"}}
             <a href="/movies" class="text-decoration-none text-muted-sa"><i class="bi bi-camera-reels me-2"></i></a>
+            {{else if eq .LibraryType "music"}}
+            <a href="/music" class="text-decoration-none text-muted-sa" style="font-size:0.85rem;font-weight:400;">
+                <i class="bi bi-music-note-beamed me-1"></i>Music
+            </a>
+            <i class="bi bi-chevron-right mx-2" style="font-size:0.75rem;color:#6c7086;"></i>
+            <a href="/music/{{pathEscape (printf "%s/%s" .Artist .Album)}}?library_root_id={{.LibraryRootID}}"
+               class="text-decoration-none text-muted-sa" style="font-size:0.85rem;font-weight:400;">
+                {{if .Artist}}{{.Artist}} &mdash; {{end}}{{.Album}}
+            </a>
+            <i class="bi bi-chevron-right mx-2" style="font-size:0.75rem;color:#6c7086;"></i>
             {{else}}
             <a href="/shows" class="text-decoration-none text-muted-sa"><i class="bi bi-tv me-2"></i></a>
             {{end}}
@@ -63,6 +73,132 @@
         </div>
     </div>
 </div>
+
+{{if eq .LibraryType "music"}}
+<!-- Music Metadata -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-music-note-beamed me-2"></i>Audio Metadata</div>
+    <div class="card-body">
+        <div class="row">
+            {{if .Artist}}
+            <div class="col-md-4">
+                <small class="text-muted-sa">Artist</small>
+                <div class="mb-2">{{.Artist}}</div>
+            </div>
+            {{end}}
+            {{if .Album}}
+            <div class="col-md-4">
+                <small class="text-muted-sa">Album</small>
+                <div class="mb-2">{{.Album}}</div>
+            </div>
+            {{end}}
+            {{if .TrackNum}}
+            <div class="col-md-2">
+                <small class="text-muted-sa">Track</small>
+                <div class="mb-2">{{.TrackNum}}</div>
+            </div>
+            {{end}}
+        </div>
+        <div class="row">
+            <div class="col-md-3">
+                <small class="text-muted-sa">Format</small>
+                <div class="mb-2">{{if .AudioCodec}}<span class="badge bg-secondary">{{upper .AudioCodec}}</span>{{else}}&mdash;{{end}}</div>
+            </div>
+            <div class="col-md-3">
+                <small class="text-muted-sa">Bitrate</small>
+                <div class="mb-2">{{if .Bitrate}}{{bitrateKbps .Bitrate}} kbps{{else}}&mdash;{{end}}</div>
+            </div>
+            <div class="col-md-3">
+                <small class="text-muted-sa">Sample Rate</small>
+                <div class="mb-2">{{if .SampleRate}}{{.SampleRate}} Hz{{else}}&mdash;{{end}}</div>
+            </div>
+            <div class="col-md-3">
+                <small class="text-muted-sa">Bit Depth</small>
+                <div class="mb-2">{{if .BitDepth}}{{.BitDepth}}-bit{{else}}&mdash;{{end}}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Format Preference -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-music-note me-2"></i>Audio Format Preference</div>
+    <div class="card-body">
+        {{if .AudioFormatOverride}}
+        <div>
+            <small class="text-muted-sa">Album override</small>
+            <div><strong>{{upper .AudioFormatOverride}}</strong></div>
+        </div>
+        {{else}}
+        <div>
+            <small class="text-muted-sa">Using global setting</small>
+            <div>{{if $.GlobalAudioFormat}}{{upper $.GlobalAudioFormat}}{{else}}<span class="text-muted-sa">Any format</span>{{end}}</div>
+        </div>
+        {{end}}
+        <div class="mt-2" style="font-size:0.85rem;">
+            <i class="bi bi-info-circle me-1 text-muted-sa"></i>
+            <span class="text-muted-sa">Audio format preferences are managed per album on the <a href="/music/{{pathEscape (printf "%s/%s" .Artist .Album)}}?library_root_id={{.LibraryRootID}}">Album</a> page.</span>
+        </div>
+    </div>
+</div>
+
+<!-- Convert Audio -->
+{{if not $.HasPendingJob}}
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-arrow-repeat me-2"></i>Convert Audio Format</div>
+    <div class="card-body">
+        <div class="row align-items-end g-3">
+            <div class="col-md-4">
+                <label class="form-label mb-1" style="font-size:0.85rem;">Target format</label>
+                <select class="form-select form-select-sm" id="convertTargetCodec" onchange="updateConvertUI()">
+                    <option value="flac">FLAC (lossless)</option>
+                    <option value="mp3">MP3 (lossy)</option>
+                    <option value="aac">AAC (lossy)</option>
+                    <option value="opus">Opus (lossy)</option>
+                </select>
+            </div>
+            <div class="col-md-3" id="convertBitrateSection">
+                <label class="form-label mb-1" style="font-size:0.85rem;">Target bitrate (kbps)</label>
+                <input type="number" class="form-control form-control-sm" id="convertTargetBitrate" value="320" min="64" max="1411">
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-sa btn-sm w-100" onclick="addConvertOp()">
+                    <i class="bi bi-arrow-repeat me-1"></i>Convert
+                </button>
+            </div>
+        </div>
+        <div id="convertWarning" class="mt-3" style="display:none;"></div>
+        <div class="mt-2" style="font-size:0.82rem;color:var(--sa-text-muted);">
+            Current format: <strong>{{if .AudioCodec}}{{upper .AudioCodec}}{{else}}Unknown{{end}}</strong>
+            {{if .Bitrate}}at {{bitrateKbps .Bitrate}} kbps{{end}}
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{if $.HasPendingJob}}
+<div class="alert mb-4" style="background-color:rgba(210,153,34,0.12);border:1px solid var(--sa-warning);color:var(--sa-text-primary);" role="alert">
+    <i class="bi bi-exclamation-triangle me-2"></i>
+    This file has a pending or running job. New operations cannot be added until it completes.
+    <a href="/jobs" class="alert-link">View Jobs</a>
+</div>
+{{end}}
+
+<!-- Music Ops Panel -->
+<div class="ops-panel" id="opsPanel" style="display:none;">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Pending Operations</h6>
+        <div>
+            <button class="btn btn-outline-secondary btn-sm me-2" onclick="clearOps()">Clear All</button>
+            <button class="btn btn-sa btn-sm" onclick="applyOps()">
+                <i class="bi bi-play-fill"></i> Apply
+            </button>
+        </div>
+    </div>
+    <div id="opsList"></div>
+</div>
+
+{{else}}
 
 <!-- Language Preference -->
 <div class="card mb-4">
@@ -447,6 +583,7 @@
 <script>
 let operations = [];
 const mediaFileId = {{.File.ID}};
+const sourceAudioCodec = '{{.File.AudioCodec}}';
 
 function addRemoveOp(type, streamIndex, label) {
     // Check if already added
@@ -557,7 +694,14 @@ function renderOps() {
         const div = document.createElement('div');
         div.className = 'op-item';
         let icon, label;
-        if (op.type === 'embed_subtitle') {
+        if (op.type === 'convert_audio') {
+            icon = 'arrow-repeat';
+            const bitrateStr = (op.target_codec !== 'flac' && op.target_bitrate) ? ' @ ' + op.target_bitrate + ' kbps' : '';
+            label = 'convert to ' + op.target_codec.toUpperCase() + bitrateStr;
+            if (op.warning) {
+                label += '<br><small style="color:var(--sa-warning);"><i class="bi bi-exclamation-triangle me-1"></i>' + op.warning + '</small>';
+            }
+        } else if (op.type === 'embed_subtitle') {
             icon = 'box-arrow-in-down-right';
             label = 'embed subtitle: ' + (op.source_path || '').split('/').pop();
         } else if (op.type === 'delete_external_subtitle') {
@@ -627,6 +771,56 @@ function bulkExtractSubtitle() {
     });
 }
 
+function isLosslessCodec(codec) {
+    if (!codec) return false;
+    const lossless = new Set(['flac', 'alac', 'wavpack', 'ape', 'tak', 'aiff', 'aif']);
+    return lossless.has(codec.toLowerCase()) || codec.toLowerCase().startsWith('pcm_');
+}
+
+function updateConvertUI() {
+    const sel = document.getElementById('convertTargetCodec');
+    if (!sel) return;
+    const bitrateSection = document.getElementById('convertBitrateSection');
+    bitrateSection.style.display = sel.value === 'flac' ? 'none' : '';
+}
+
+function addConvertOp() {
+    const sel = document.getElementById('convertTargetCodec');
+    if (!sel) return;
+    const target = sel.value;
+    const bitrateInput = document.getElementById('convertTargetBitrate');
+    const bitrate = (target === 'flac') ? 0 : (parseInt(bitrateInput.value) || 320);
+
+    const srcLossless = isLosslessCodec(sourceAudioCodec);
+    const dstLossless = target === 'flac';
+    const srcLabel = sourceAudioCodec ? sourceAudioCodec.toUpperCase() : 'unknown';
+    const dstLabel = target.toUpperCase();
+
+    let warning = '';
+    if (!srcLossless && dstLossless) {
+        warning = 'Source is lossy (' + srcLabel + '). Converting to ' + dstLabel + " creates 'fake lossless' — no audio quality is recovered.";
+    } else if (!srcLossless && !dstLossless) {
+        warning = 'Source is already lossy (' + srcLabel + '). Transcoding to another lossy format (' + dstLabel + ') degrades quality further.';
+    } else if (srcLossless && !dstLossless) {
+        warning = 'Converting from lossless (' + srcLabel + ') to lossy (' + dstLabel + ') will reduce audio quality.';
+    }
+
+    const warningDiv = document.getElementById('convertWarning');
+    if (warningDiv) {
+        if (warning) {
+            const cls = (!srcLossless && !dstLossless) ? 'danger' : 'warning';
+            warningDiv.innerHTML = '<div class="alert alert-' + cls + '" style="font-size:0.85rem;"><i class="bi bi-exclamation-triangle me-1"></i>' + warning + '</div>';
+            warningDiv.style.display = '';
+        } else {
+            warningDiv.style.display = 'none';
+        }
+    }
+
+    operations = operations.filter(op => op.type !== 'convert_audio');
+    operations.push({ type: 'convert_audio', target_codec: target, target_bitrate: bitrate, warning: warning });
+    renderOps();
+}
+
 function applyOps() {
     if (operations.length === 0) return;
     if (!confirm('Apply ' + operations.length + ' operation(s) to this file? This will modify the file using ffmpeg.')) return;
@@ -650,5 +844,7 @@ function applyOps() {
     document.body.appendChild(form);
     form.submit();
 }
+
+document.addEventListener('DOMContentLoaded', function() { updateConvertUI(); });
 </script>
 {{end}}

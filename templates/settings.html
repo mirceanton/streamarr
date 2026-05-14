@@ -56,6 +56,8 @@
                         <td>
                             {{if eq .Type "movies"}}
                             <span class="badge bg-secondary"><i class="bi bi-camera-reels me-1"></i>Movies</span>
+                            {{else if eq .Type "music"}}
+                            <span class="badge bg-secondary"><i class="bi bi-music-note-beamed me-1"></i>Music</span>
                             {{else}}
                             <span class="badge bg-secondary"><i class="bi bi-tv me-1"></i>Shows</span>
                             {{end}}
@@ -128,6 +130,7 @@
                     <select class="form-select" name="type" required>
                         <option value="movies">Movies</option>
                         <option value="shows">TV Shows</option>
+                        <option value="music">Music</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -183,6 +186,62 @@
                         <option value="pgs" {{if eq .PreferredSubtitleFormat "pgs"}}selected{{end}}>PGS (Blu-ray image)</option>
                         <option value="dvd" {{if eq .PreferredSubtitleFormat "dvd"}}selected{{end}}>DVD (VOBSUB image)</option>
                     </select>
+                </div>
+                <div class="col-md-8 d-flex align-items-end">
+                    <button type="submit" class="btn btn-sa">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Preferred Audio Format -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-music-note me-2"></i>Preferred Audio Format</div>
+    <div class="card-body">
+        <form hx-post="/api/settings/audio-format" hx-swap="none">
+            <p class="text-muted-sa" style="font-size:0.85rem;">
+                Music files with a codec other than the preferred format will be flagged as "Needs Attention".
+                Leave blank to accept any format.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <select class="form-select" name="audio_format">
+                        <option value="" {{if eq .PreferredAudioFormat ""}}selected{{end}}>Any (no preference)</option>
+                        <option value="flac" {{if eq .PreferredAudioFormat "flac"}}selected{{end}}>FLAC (lossless)</option>
+                        <option value="mp3" {{if eq .PreferredAudioFormat "mp3"}}selected{{end}}>MP3</option>
+                        <option value="aac" {{if eq .PreferredAudioFormat "aac"}}selected{{end}}>AAC</option>
+                        <option value="opus" {{if eq .PreferredAudioFormat "opus"}}selected{{end}}>Opus</option>
+                    </select>
+                </div>
+                <div class="col-md-8 d-flex align-items-end">
+                    <button type="submit" class="btn btn-sa">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Minimum Acceptable Bitrate -->
+<div class="card mb-4">
+    <div class="card-header"><i class="bi bi-soundwave me-2"></i>Minimum Acceptable Bitrate</div>
+    <div class="card-body">
+        <form hx-post="/api/settings/min-bitrate" hx-swap="none">
+            <p class="text-muted-sa" style="font-size:0.85rem;">
+                Music files with a bitrate below this threshold will be flagged as "Needs Attention".
+                Set to 0 to disable this check.
+            </p>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="input-group">
+                        <input type="number" class="form-control" name="min_bitrate"
+                            value="{{.PreferredMinBitrate}}" min="0" placeholder="0">
+                        <span class="input-group-text">kbps</span>
+                    </div>
                 </div>
                 <div class="col-md-8 d-flex align-items-end">
                     <button type="submit" class="btn btn-sa">

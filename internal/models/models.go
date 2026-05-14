@@ -7,7 +7,7 @@ type LibraryRoot struct {
 	ID            int64
 	Name          string
 	Path          string
-	Type          string // "movies" or "shows"
+	Type          string // "movies", "shows", or "music"
 	LastScannedAt *time.Time
 	ScanSchedule  *string // cron expression, nil means no schedule
 }
@@ -20,13 +20,22 @@ type MediaFile struct {
 	Filename         string
 	Title            string
 	Year             int
-	Season           *int // nil for movies
-	Episode          *int // nil for movies
+	Season           *int // nil for movies and music
+	Episode          *int // nil for movies and music
 	SizeBytes        int64
 	Container        string
 	ScannedAt        time.Time
 	NeedsAttention   bool
 	AttentionReasons string
+
+	// Music-specific fields (only populated for music library type)
+	Bitrate    int64  // bits per second
+	SampleRate int    // Hz
+	BitDepth   int    // bits per sample (lossless formats)
+	AudioCodec string // primary codec (e.g. "flac", "mp3")
+	Artist     string
+	Album      string
+	TrackNum   int
 
 	// Joined fields (not always populated)
 	AudioTracks            []AudioTrack
@@ -35,6 +44,7 @@ type MediaFile struct {
 	LibraryType            string   // from library_roots.type
 	LanguageOverride       []string // nil means use global setting
 	SubtitleFormatOverride string   // "" means use global setting
+	AudioFormatOverride    string   // "" means use global setting (music only)
 	ActiveJobStatus        string   // "pending", "running", or "" if none
 }
 
@@ -95,7 +105,7 @@ type Job struct {
 
 // Operation represents a single action within a job.
 type Operation struct {
-	Type        string `json:"type"` // remove_audio, remove_subtitle, extract_subtitle, embed_subtitle, delete_external_subtitle, set_language
+	Type        string `json:"type"` // remove_audio, remove_subtitle, extract_subtitle, embed_subtitle, delete_external_subtitle, set_language, convert_audio
 	StreamIndex int    `json:"stream_index"`
 	OutputPath  string `json:"output_path,omitempty"`
 	// embed_subtitle fields
@@ -103,6 +113,10 @@ type Operation struct {
 	Language   string `json:"language,omitempty"`    // language tag for stream metadata
 	Forced     bool   `json:"forced,omitempty"`      // set forced disposition
 	SDH        bool   `json:"sdh,omitempty"`         // set hearing_impaired disposition
+	// convert_audio fields
+	TargetCodec   string `json:"target_codec,omitempty"`   // flac, mp3, aac, opus
+	TargetBitrate int    `json:"target_bitrate,omitempty"` // kbps, used for lossy targets
+	Warning       string `json:"warning,omitempty"`        // transcoding quality warning, if any
 }
 
 // Series groups episodes for the shows view.
@@ -115,6 +129,17 @@ type Series struct {
 	AttentionEpisodeCount  int
 	LanguageOverride       []string // nil means use global setting
 	SubtitleFormatOverride string   // "" means use global setting
+}
+
+// Album groups tracks for the music view.
+type Album struct {
+	Title               string
+	Artist              string
+	LibraryRootID       int64
+	Tracks              []MediaFile
+	NeedsAttention      bool
+	AttentionTrackCount int
+	AudioFormatOverride string // "" means use global setting
 }
 
 // ScanStatus tracks whether a scan is in progress.
@@ -134,6 +159,8 @@ type DashboardStats struct {
 	SeriesNeedAttention   int
 	TotalEpisodes         int
 	EpisodesNeedAttention int
+	TotalTracks           int
+	TracksNeedAttention   int
 	TotalJobs             int
 	RunningJobs           int
 	PendingJobs           int

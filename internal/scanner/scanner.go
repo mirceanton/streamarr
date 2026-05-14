@@ -27,6 +27,21 @@ var (
 		".mov": true,
 	}
 
+	musicExts = map[string]bool{
+		".mp3":  true,
+		".flac": true,
+		".aac":  true,
+		".m4a":  true,
+		".ogg":  true,
+		".opus": true,
+		".wav":  true,
+		".wma":  true,
+		".aiff": true,
+		".aif":  true,
+		".ape":  true,
+		".wv":   true,
+	}
+
 	// Patterns for parsing title and year from directory/filenames
 	titleYearRe = regexp.MustCompile(`^(.+?)\s*[\(\[]?(\d{4})[\)\]]?`)
 	// TV show patterns
@@ -75,6 +90,12 @@ func runScan(root *models.LibraryRoot, quickMode bool) error {
 		}
 	}
 
+	// Select extension filter based on library type
+	extFilter := mediaExts
+	if root.Type == "music" {
+		extFilter = musicExts
+	}
+
 	// Collect files to scan
 	var files []string
 	err := filepath.Walk(root.Path, func(path string, info os.FileInfo, err error) error {
@@ -85,7 +106,7 @@ func runScan(root *models.LibraryRoot, quickMode bool) error {
 			return nil
 		}
 		ext := strings.ToLower(filepath.Ext(path))
-		if !mediaExts[ext] {
+		if !extFilter[ext] {
 			return nil
 		}
 		if strings.Contains(filepath.Base(path), ".tmp.") {
@@ -197,6 +218,10 @@ func subtitleCodecToFormat(codec string) string {
 }
 
 func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) error {
+	if root.Type == "music" {
+		return scanMusicFile(root, path)
+	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -303,6 +328,103 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 	}
 
 	return nil
+}
+
+// scanMusicFile scans a single music file, extracting audio metadata and storing it in the DB.
+func scanMusicFile(root *models.LibraryRoot, path string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	filename := filepath.Base(path)
+	ext := strings.ToLower(filepath.Ext(filename))
+	container := strings.TrimPrefix(ext, ".")
+
+	meta, err := ProbeMusic(path)
+	if err != nil {
+		return fmt.Errorf("probe music: %w", err)
+	}
+
+	// Fall back to directory structure for artist/album when tags are missing
+	dirArtist, dirAlbum := parseMusicDirectoryMeta(path)
+	artist := firstNonEmpty(meta.Artist, dirArtist)
+	album := firstNonEmpty(meta.Album, dirAlbum)
+
+	// Track title falls back to filename without extension
+	title := meta.Title
+	if title == "" {
+		title = strings.TrimSuffix(filename, filepath.Ext(filename))
+	}
+
+	// Resolve effective preferred audio format
+	effectiveAudioFormat, _ := db.GetPreferredAudioFormat()
+	albumKey := artist + "/" + album
+	if override, _ := db.GetAudioFormatOverride(root.ID, albumKey, "album"); override != "" {
+		effectiveAudioFormat = override
+	}
+
+	minBitrate, _ := db.GetPreferredMinBitrate()
+
+	needsAttention, attentionReasons := ComputeMusicAttentionReasons(meta.Codec, meta.Bitrate, effectiveAudioFormat, minBitrate)
+
+	mf := &models.MediaFile{
+		LibraryRootID:    root.ID,
+		Path:             path,
+		Filename:         filename,
+		Title:            title,
+		Year:             meta.Year,
+		SizeBytes:        info.Size(),
+		Container:        container,
+		ScannedAt:        time.Now(),
+		NeedsAttention:   needsAttention,
+		AttentionReasons: attentionReasons,
+		Bitrate:          meta.Bitrate,
+		SampleRate:       meta.SampleRate,
+		BitDepth:         meta.BitDepth,
+		AudioCodec:       meta.Codec,
+		Artist:           artist,
+		Album:            album,
+		TrackNum:         meta.TrackNum,
+	}
+
+	_, err = db.UpsertMediaFile(mf)
+	return err
+}
+
+// parseMusicDirectoryMeta infers artist and album from path structure: /.../<Artist>/<Album>/track.flac
+func parseMusicDirectoryMeta(filePath string) (artist, album string) {
+	dir := filepath.Dir(filePath)       // .../Artist/Album
+	albumDir := filepath.Base(dir)      // Album
+	artistDir := filepath.Base(filepath.Dir(dir)) // Artist
+	return artistDir, albumDir
+}
+
+// ComputeMusicAttentionReasons returns whether a music file needs attention and why.
+func ComputeMusicAttentionReasons(codec string, bitrate int64, preferredFormat string, minBitrate int) (bool, string) {
+	var reasons []string
+
+	if preferredFormat != "" && !strings.EqualFold(codec, preferredFormat) {
+		// Map codec alias to preferred format name for comparison
+		effective := codec
+		if strings.HasPrefix(codec, "pcm_") || codec == "aiff" {
+			effective = "wav"
+		} else if codec == "alac" {
+			effective = "alac"
+		}
+		if !strings.EqualFold(effective, preferredFormat) {
+			reasons = append(reasons, fmt.Sprintf("Non-preferred format: got %s, want %s", strings.ToUpper(codec), strings.ToUpper(preferredFormat)))
+		}
+	}
+
+	if minBitrate > 0 && bitrate > 0 && bitrate < int64(minBitrate)*1000 {
+		reasons = append(reasons, fmt.Sprintf("Bitrate below minimum: got %d kbps, want >= %d kbps", bitrate/1000, minBitrate))
+	}
+
+	if len(reasons) == 0 {
+		return false, ""
+	}
+	return true, strings.Join(reasons, "\n")
 }
 
 func parseTitle(path, libType string) (string, int) {
