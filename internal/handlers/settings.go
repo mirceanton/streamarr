@@ -26,6 +26,9 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 	parallelJobs := db.GetParallelJobs()
 	preferredSubtitleFormat, _ := db.GetPreferredSubtitleFormat()
 
+	preferredAudioFormat, _ := db.GetPreferredAudioFormat()
+	preferredMinBitrate, _ := db.GetPreferredMinBitrate()
+
 	data := map[string]interface{}{
 		"Page":                    "settings",
 		"LibraryRoots":            roots,
@@ -33,6 +36,8 @@ func SettingsHandler(w http.ResponseWriter, r *http.Request) {
 		"ScanStatus":              scanStatus,
 		"ParallelJobs":            parallelJobs,
 		"PreferredSubtitleFormat": preferredSubtitleFormat,
+		"PreferredAudioFormat":    preferredAudioFormat,
+		"PreferredMinBitrate":     preferredMinBitrate,
 	}
 	render(w, "settings.html", data)
 }
@@ -52,8 +57,8 @@ func AddLibraryHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if libType != "movies" && libType != "shows" {
-		http.Error(w, "Type must be 'movies' or 'shows'", http.StatusBadRequest)
+	if libType != "movies" && libType != "shows" && libType != "music" {
+		http.Error(w, "Type must be 'movies', 'shows', or 'music'", http.StatusBadRequest)
 		return
 	}
 
@@ -278,3 +283,55 @@ func UpdateSubtitleFormatHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("HX-Redirect", "/settings")
 	w.WriteHeader(http.StatusOK)
 }
+
+var validAudioFormats = map[string]bool{
+	"":     true,
+	"flac": true,
+	"mp3":  true,
+	"aac":  true,
+	"opus": true,
+}
+
+func UpdateAudioFormatHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	format := strings.TrimSpace(strings.ToLower(r.FormValue("audio_format")))
+	if !validAudioFormats[format] {
+		http.Error(w, "Invalid audio format", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.SetSetting("preferred_audio_format", format); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/settings")
+	w.WriteHeader(http.StatusOK)
+}
+
+func UpdateMinBitrateHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Invalid form data", http.StatusBadRequest)
+		return
+	}
+
+	val := strings.TrimSpace(r.FormValue("min_bitrate"))
+	n, err := strconv.Atoi(val)
+	if err != nil || n < 0 {
+		http.Error(w, "Minimum bitrate must be a non-negative integer (kbps)", http.StatusBadRequest)
+		return
+	}
+
+	if err := db.SetSetting("preferred_min_bitrate", strconv.Itoa(n)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/settings")
+	w.WriteHeader(http.StatusOK)
+}
+

@@ -37,10 +37,11 @@ var funcMap = template.FuncMap{
 		}
 		return ""
 	},
-	"audioLangs":  audioTrackLangs,
-	"subLangs":    subTrackLangs,
-	"extSubLangs": extSubLangs,
-	"pathEscape":  url.PathEscape,
+	"audioLangs":   audioTrackLangs,
+	"subLangs":     subTrackLangs,
+	"extSubLangs":  extSubLangs,
+	"pathEscape":   url.PathEscape,
+	"bitrateKbps":  func(bps int64) int64 { return bps / 1000 },
 }
 
 func InitTemplates() error {
@@ -54,6 +55,8 @@ func InitTemplates() error {
 		"media_detail.html",
 		"settings.html",
 		"jobs.html",
+		"music.html",
+		"album.html",
 	}
 
 	for _, page := range pages {

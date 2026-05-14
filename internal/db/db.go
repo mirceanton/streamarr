@@ -116,6 +116,14 @@ func migrate() error {
 			preferred_subtitle_format TEXT NOT NULL,
 			UNIQUE(library_root_id, item_key, item_type)
 		)`,
+		`CREATE TABLE IF NOT EXISTS audio_format_overrides (
+			id INTEGER PRIMARY KEY,
+			library_root_id INTEGER NOT NULL REFERENCES library_roots(id) ON DELETE CASCADE,
+			item_key TEXT NOT NULL,
+			item_type TEXT NOT NULL CHECK(item_type IN ('artist', 'album')),
+			preferred_audio_format TEXT NOT NULL,
+			UNIQUE(library_root_id, item_key, item_type)
+		)`,
 	}
 
 	for _, m := range migrations {
@@ -129,6 +137,8 @@ func migrate() error {
 		{"preferred_languages", `["eng"]`},
 		{"parallel_jobs", "1"},
 		{"preferred_subtitle_format", ""},
+		{"preferred_audio_format", ""},
+		{"preferred_min_bitrate", "0"},
 	}
 	for _, d := range defaults {
 		if _, err := DB.Exec(`INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)`, d.key, d.value); err != nil {
@@ -151,6 +161,29 @@ func migrate() error {
 	if attentionReasonsColCount == 0 {
 		if _, err := DB.Exec(`ALTER TABLE media_files ADD COLUMN attention_reasons TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("add attention_reasons column: %w", err)
+		}
+	}
+
+	// Add music-specific columns to media_files if they don't exist (idempotent)
+	musicCols := []struct {
+		name    string
+		colType string
+	}{
+		{"bitrate", "INTEGER"},
+		{"sample_rate", "INTEGER"},
+		{"bit_depth", "INTEGER"},
+		{"audio_codec", "TEXT"},
+		{"artist", "TEXT"},
+		{"album", "TEXT"},
+		{"track_num", "INTEGER"},
+	}
+	for _, col := range musicCols {
+		var count int
+		DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('media_files') WHERE name = ?`, col.name).Scan(&count)
+		if count == 0 {
+			if _, err := DB.Exec(`ALTER TABLE media_files ADD COLUMN ` + col.name + ` ` + col.colType); err != nil {
+				return fmt.Errorf("add %s column: %w", col.name, err)
+			}
 		}
 	}
 

@@ -93,6 +93,30 @@ func CreateJobHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Inject transcoding quality warnings for convert_audio operations
+	for i, op := range ops {
+		if op.Type != "convert_audio" {
+			continue
+		}
+		if op.TargetCodec == "" {
+			http.Error(w, "convert_audio operation requires a target_codec", http.StatusBadRequest)
+			return
+		}
+		srcCodec := mf.AudioCodec
+		dstCodec := strings.ToLower(op.TargetCodec)
+		srcLossy := scanner.IsLossyCodec(srcCodec)
+		dstLossy := scanner.IsLossyCodec(dstCodec)
+		srcLossless := scanner.IsLosslessCodec(srcCodec)
+		switch {
+		case srcLossy && !dstLossy:
+			ops[i].Warning = "Source is lossy (" + strings.ToUpper(srcCodec) + "). Converting to " + strings.ToUpper(dstCodec) + " creates 'fake lossless' — no audio quality is recovered."
+		case srcLossy && dstLossy:
+			ops[i].Warning = "Source is already lossy (" + strings.ToUpper(srcCodec) + "). Transcoding to another lossy format (" + strings.ToUpper(dstCodec) + ") degrades quality further."
+		case srcLossless && dstLossy:
+			ops[i].Warning = "Converting from lossless (" + strings.ToUpper(srcCodec) + ") to lossy (" + strings.ToUpper(dstCodec) + ") will reduce audio quality."
+		}
+	}
+
 	// Fill in output paths for extract operations
 	for i, op := range ops {
 		if op.Type == "extract_subtitle" && op.OutputPath == "" {
@@ -120,11 +144,14 @@ func CreateJobHandler(w http.ResponseWriter, r *http.Request) {
 
 	processor.Enqueue(jobID)
 
-	// Redirect to the table view: movies list for movies, series episodes page for shows
+	// Redirect to the table view based on library type
 	var redirectURL string
-	if mf.LibraryType == "movies" {
+	switch mf.LibraryType {
+	case "movies":
 		redirectURL = "/movies"
-	} else {
+	case "music":
+		redirectURL = "/music/" + url.PathEscape(mf.Artist+"/"+mf.Album)
+	default:
 		redirectURL = "/shows/" + url.PathEscape(mf.Title)
 	}
 	if r.Header.Get("HX-Request") == "true" {

@@ -1,0 +1,84 @@
+{{template "base" .}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1><i class="bi bi-music-note-beamed me-2"></i>Music</h1>
+</div>
+
+<div class="filter-bar">
+    <input type="search" class="form-control form-control-sm" id="albumSearch"
+        placeholder="Search by artist or album..." oninput="filterAlbums(this.value)"
+        style="max-width:320px;">
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="attentionFilter"
+            {{if .NeedsAttention}}checked{{end}}
+            onchange="window.location.href='/music' + (this.checked ? '?attention=1' : '')">
+        <label class="form-check-label" for="attentionFilter">Needs Attention Only</label>
+    </div>
+</div>
+
+{{if .Albums}}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable(this)">Artist <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Album <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Tracks <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Format Override <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Status <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Albums}}
+                <tr class="clickable-row"
+                    data-album="{{.Artist}} {{.Title}}"
+                    onclick="window.location='/music/{{pathEscape (printf "%s/%s" .Artist .Title)}}?library_root_id={{.LibraryRootID}}'">
+                    <td><strong>{{if .Artist}}{{.Artist}}{{else}}<span class="text-muted-sa">Unknown Artist</span>{{end}}</strong></td>
+                    <td>{{if .Title}}{{.Title}}{{else}}<span class="text-muted-sa">Unknown Album</span>{{end}}</td>
+                    <td class="text-muted-sa" data-sort-value="{{len .Tracks}}">{{len .Tracks}}</td>
+                    <td>
+                        {{if .AudioFormatOverride}}
+                        <span class="badge bg-secondary" style="font-size:0.7rem;" title="Audio format override set">
+                            <i class="bi bi-music-note me-1"></i>{{upper .AudioFormatOverride}}
+                        </span>
+                        {{else}}
+                        <span class="text-muted-sa" style="font-size:0.85rem;">&mdash;</span>
+                        {{end}}
+                    </td>
+                    <td data-sort-value="{{if .NeedsAttention}}1{{else}}0{{end}}">
+                        {{if .NeedsAttention}}
+                        <span class="badge badge-attention" title="{{.AttentionTrackCount}} track(s) need attention">
+                            {{.AttentionTrackCount}} need attention
+                        </span>
+                        {{else}}
+                        <span class="badge bg-secondary" style="font-size:0.7rem;">OK</span>
+                        {{end}}
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{else}}
+<div class="empty-state">
+    <i class="bi bi-music-note-beamed"></i>
+    <h5>No Music Found</h5>
+    <p>Add a music library in <a href="/settings">Settings</a> and run a scan to get started.</p>
+</div>
+{{end}}
+{{end}}
+
+{{define "scripts"}}
+<script>
+function filterAlbums(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('tbody tr').forEach(function(row) {
+        const album = row.dataset.album ? row.dataset.album.toLowerCase() : '';
+        row.style.display = (!q || album.includes(q)) ? '' : 'none';
+    });
+}
+</script>
+{{end}}

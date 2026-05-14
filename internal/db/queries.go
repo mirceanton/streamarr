@@ -310,36 +310,49 @@ func GetSeriesEpisodesForTable(title string, needsAttentionOnly bool) ([]models.
 func GetMediaFile(id int64) (*models.MediaFile, error) {
 	var f models.MediaFile
 	err := DB.QueryRow(`SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
-		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons, lr.type
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons, lr.type,
+		COALESCE(mf.bitrate, 0), COALESCE(mf.sample_rate, 0), COALESCE(mf.bit_depth, 0),
+		COALESCE(mf.audio_codec, ''), COALESCE(mf.artist, ''), COALESCE(mf.album, ''), COALESCE(mf.track_num, 0)
 		FROM media_files mf JOIN library_roots lr ON mf.library_root_id = lr.id
 		WHERE mf.id = ?`, id).
 		Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
-			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons, &f.LibraryType)
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons, &f.LibraryType,
+			&f.Bitrate, &f.SampleRate, &f.BitDepth, &f.AudioCodec, &f.Artist, &f.Album, &f.TrackNum)
 	if err != nil {
 		return nil, err
 	}
 
-	f.AudioTracks, err = GetAudioTracks(id)
-	if err != nil {
-		return nil, err
-	}
-	f.SubtitleTracks, err = GetSubtitleTracks(id)
-	if err != nil {
-		return nil, err
-	}
-	f.ExternalSubtitleFiles, err = GetExternalSubtitleFiles(id)
-	if err != nil {
-		return nil, err
+	if f.LibraryType != "music" {
+		f.AudioTracks, err = GetAudioTracks(id)
+		if err != nil {
+			return nil, err
+		}
+		f.SubtitleTracks, err = GetSubtitleTracks(id)
+		if err != nil {
+			return nil, err
+		}
+		f.ExternalSubtitleFiles, err = GetExternalSubtitleFiles(id)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	itemType := "movie"
 	itemKey := f.Path
-	if f.LibraryType == "shows" {
+	switch f.LibraryType {
+	case "shows":
 		itemType = "series"
 		itemKey = f.Title
 		if itemKey == "" {
 			itemKey = "Unknown Series"
 		}
+	case "music":
+		albumKey := f.Artist + "/" + f.Album
+		f.AudioFormatOverride, err = GetAudioFormatOverride(f.LibraryRootID, albumKey, "album")
+		if err != nil {
+			return nil, err
+		}
+		return &f, nil
 	}
 	f.LanguageOverride, err = GetLanguageOverride(f.LibraryRootID, itemKey, itemType)
 	if err != nil {
@@ -367,8 +380,10 @@ func GetMediaFileByPath(path string) (*models.MediaFile, error) {
 }
 
 func UpsertMediaFile(f *models.MediaFile) (int64, error) {
-	_, err := DB.Exec(`INSERT INTO media_files (library_root_id, path, filename, title, year, season, episode, size_bytes, container, scanned_at, needs_attention, attention_reasons)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := DB.Exec(`INSERT INTO media_files
+		(library_root_id, path, filename, title, year, season, episode, size_bytes, container, scanned_at, needs_attention, attention_reasons,
+		 bitrate, sample_rate, bit_depth, audio_codec, artist, album, track_num)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(path) DO UPDATE SET
 			filename = excluded.filename,
 			title = excluded.title,
@@ -379,9 +394,17 @@ func UpsertMediaFile(f *models.MediaFile) (int64, error) {
 			container = excluded.container,
 			scanned_at = excluded.scanned_at,
 			needs_attention = excluded.needs_attention,
-			attention_reasons = excluded.attention_reasons`,
+			attention_reasons = excluded.attention_reasons,
+			bitrate = excluded.bitrate,
+			sample_rate = excluded.sample_rate,
+			bit_depth = excluded.bit_depth,
+			audio_codec = excluded.audio_codec,
+			artist = excluded.artist,
+			album = excluded.album,
+			track_num = excluded.track_num`,
 		f.LibraryRootID, f.Path, f.Filename, f.Title, f.Year, f.Season, f.Episode,
-		f.SizeBytes, f.Container, f.ScannedAt, f.NeedsAttention, f.AttentionReasons)
+		f.SizeBytes, f.Container, f.ScannedAt, f.NeedsAttention, f.AttentionReasons,
+		f.Bitrate, f.SampleRate, f.BitDepth, f.AudioCodec, f.Artist, f.Album, f.TrackNum)
 	if err != nil {
 		return 0, err
 	}
@@ -726,8 +749,20 @@ func GetDashboardStats() (*models.DashboardStats, error) {
 		return nil, err
 	}
 
-	total := stats.TotalMovies + stats.TotalEpisodes
-	attention := stats.MoviesNeedAttention + stats.EpisodesNeedAttention
+	err = DB.QueryRow(`
+		SELECT
+			COUNT(*),
+			COALESCE(SUM(CASE WHEN mf.needs_attention = 1 THEN 1 ELSE 0 END), 0)
+		FROM media_files mf
+		JOIN library_roots lr ON mf.library_root_id = lr.id
+		WHERE lr.type = 'music'`).
+		Scan(&stats.TotalTracks, &stats.TracksNeedAttention)
+	if err != nil {
+		return nil, err
+	}
+
+	total := stats.TotalMovies + stats.TotalEpisodes + stats.TotalTracks
+	attention := stats.MoviesNeedAttention + stats.EpisodesNeedAttention + stats.TracksNeedAttention
 	if total > 0 {
 		stats.HealthPct = (total - attention) * 100 / total
 	} else {
@@ -848,5 +883,132 @@ func SetSubtitleFormatOverride(libraryRootID int64, itemKey, itemType, format st
 func DeleteSubtitleFormatOverride(libraryRootID int64, itemKey, itemType string) error {
 	_, err := DB.Exec(`DELETE FROM subtitle_format_overrides WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
 		libraryRootID, itemKey, itemType)
+	return err
+}
+
+// --- Audio Format Settings (music) ---
+
+func GetPreferredAudioFormat() (string, error) {
+	return GetSetting("preferred_audio_format")
+}
+
+func GetPreferredMinBitrate() (int, error) {
+	val, err := GetSetting("preferred_min_bitrate")
+	if err != nil || val == "" {
+		return 0, err
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n < 0 {
+		return 0, nil
+	}
+	return n, nil
+}
+
+// --- Audio Format Overrides (music) ---
+
+func GetAudioFormatOverride(libraryRootID int64, itemKey, itemType string) (string, error) {
+	var val string
+	err := DB.QueryRow(`SELECT preferred_audio_format FROM audio_format_overrides WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
+		libraryRootID, itemKey, itemType).Scan(&val)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return val, err
+}
+
+func SetAudioFormatOverride(libraryRootID int64, itemKey, itemType, format string) error {
+	_, err := DB.Exec(`INSERT INTO audio_format_overrides (library_root_id, item_key, item_type, preferred_audio_format)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT(library_root_id, item_key, item_type) DO UPDATE SET preferred_audio_format = excluded.preferred_audio_format`,
+		libraryRootID, itemKey, itemType, format)
+	return err
+}
+
+func DeleteAudioFormatOverride(libraryRootID int64, itemKey, itemType string) error {
+	_, err := DB.Exec(`DELETE FROM audio_format_overrides WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
+		libraryRootID, itemKey, itemType)
+	return err
+}
+
+// --- Music Album Queries ---
+
+// GetAlbums returns a list of albums from a music library root, grouped by artist+album.
+func GetAlbums(rootID int64) ([]models.Album, error) {
+	rows, err := DB.Query(`
+		SELECT
+			COALESCE(artist, ''),
+			COALESCE(album, 'Unknown Album'),
+			COUNT(*) as track_count,
+			COALESCE(SUM(CASE WHEN needs_attention = 1 THEN 1 ELSE 0 END), 0) as attention_count
+		FROM media_files
+		WHERE library_root_id = ?
+		GROUP BY artist, album
+		ORDER BY artist, album`, rootID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var albums []models.Album
+	for rows.Next() {
+		var a models.Album
+		var trackCount, attentionCount int
+		if err := rows.Scan(&a.Artist, &a.Title, &trackCount, &attentionCount); err != nil {
+			return nil, err
+		}
+		a.LibraryRootID = rootID
+		a.NeedsAttention = attentionCount > 0
+		a.AttentionTrackCount = attentionCount
+		albums = append(albums, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Load audio format overrides for each album
+	for i := range albums {
+		key := albums[i].Artist + "/" + albums[i].Title
+		albums[i].AudioFormatOverride, _ = GetAudioFormatOverride(rootID, key, "album")
+	}
+
+	return albums, nil
+}
+
+// GetTracksByAlbum returns all tracks for a given artist/album combination.
+func GetTracksByAlbum(artist, albumTitle string, rootID int64) ([]models.MediaFile, error) {
+	rows, err := DB.Query(`
+		SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
+			mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons,
+			COALESCE(mf.bitrate, 0), COALESCE(mf.sample_rate, 0), COALESCE(mf.bit_depth, 0),
+			COALESCE(mf.audio_codec, ''), COALESCE(mf.artist, ''), COALESCE(mf.album, ''), COALESCE(mf.track_num, 0),
+			COALESCE((SELECT status FROM jobs WHERE media_file_id = mf.id AND status IN ('pending', 'running') LIMIT 1), '') as active_job_status
+		FROM media_files mf
+		WHERE mf.library_root_id = ? AND COALESCE(mf.artist, '') = ? AND COALESCE(mf.album, 'Unknown Album') = ?
+		ORDER BY mf.track_num, mf.title`, rootID, artist, albumTitle)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tracks []models.MediaFile
+	for rows.Next() {
+		var f models.MediaFile
+		f.LibraryType = "music"
+		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
+			&f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
+			&f.Bitrate, &f.SampleRate, &f.BitDepth, &f.AudioCodec, &f.Artist, &f.Album, &f.TrackNum,
+			&f.ActiveJobStatus); err != nil {
+			return nil, err
+		}
+		tracks = append(tracks, f)
+	}
+	return tracks, rows.Err()
+}
+
+// UpdateMusicFilePath updates the path and filename for a music file after a format conversion
+// that changes the file extension.
+func UpdateMusicFilePath(id int64, newPath, newFilename, newContainer, newCodec string, newBitrate int64, newSampleRate, newBitDepth int) error {
+	_, err := DB.Exec(`UPDATE media_files SET path = ?, filename = ?, container = ?, audio_codec = ?, bitrate = ?, sample_rate = ?, bit_depth = ? WHERE id = ?`,
+		newPath, newFilename, newContainer, newCodec, newBitrate, newSampleRate, newBitDepth, id)
 	return err
 }

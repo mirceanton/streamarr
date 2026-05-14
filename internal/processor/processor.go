@@ -183,6 +183,18 @@ func processJob(jobID int64) {
 		}
 	}
 
+	// Handle audio conversion (music files)
+	for _, op := range ops {
+		if op.Type == "convert_audio" {
+			if err := convertAudio(mf, op, jobID); err != nil {
+				failJob(jobID, err.Error())
+				return
+			}
+			db.UpdateJobStatus(jobID, "done")
+			return
+		}
+	}
+
 	// Re-probe and update DB
 	audioTracks, subtitleTracks, err := scanner.Probe(mf.Path)
 	if err != nil {
@@ -369,6 +381,109 @@ func buildSetLanguageCommand(inputPath string, ops []models.Operation) (*exec.Cm
 	tmpPath := inputPath + ".tmp" + filepath.Ext(inputPath)
 	args = append(args, tmpPath)
 	return exec.Command("ffmpeg", args...), nil
+}
+
+// convertAudio executes a convert_audio operation, replacing the source file with the converted output.
+// For same-extension conversions (e.g. FLAC→FLAC re-encode): writes to .tmp file then atomically renames.
+// For different-extension conversions (e.g. WAV→FLAC): writes to new path then deletes original.
+func convertAudio(mf *models.MediaFile, op models.Operation, jobID int64) error {
+	targetExt := scanner.AudioFileExtension(op.TargetCodec)
+	inputExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(mf.Path), "."))
+	baseName := strings.TrimSuffix(mf.Path, filepath.Ext(mf.Path))
+
+	// ffmpeg always writes to a temporary path to enable atomic replacement
+	tmpPath := mf.Path + ".tmp." + targetExt
+
+	args := buildConvertAudioArgs(mf.Path, tmpPath, op)
+	cmd := exec.Command("ffmpeg", args...)
+
+	db.UpdateJobCommand(jobID, strings.Join(cmd.Args, " "))
+
+	cmdOutput, err := cmd.CombinedOutput()
+	if err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("ffmpeg convert failed: %v\nOutput: %s", err, string(cmdOutput))
+	}
+
+	// Determine final path and move files
+	var finalPath string
+	if targetExt == inputExt {
+		// Same extension: rename tmp over original
+		if err := os.Rename(tmpPath, mf.Path); err != nil {
+			os.Remove(tmpPath)
+			return fmt.Errorf("rename converted file: %w", err)
+		}
+		finalPath = mf.Path
+	} else {
+		// Different extension: move tmp to new path, delete original
+		finalPath = baseName + "." + targetExt
+		if err := os.Rename(tmpPath, finalPath); err != nil {
+			os.Remove(tmpPath)
+			return fmt.Errorf("rename converted file: %w", err)
+		}
+		if err := os.Remove(mf.Path); err != nil {
+			log.Printf("warning: remove original after conversion %s: %v", mf.Path, err)
+		}
+	}
+
+	// Re-probe the converted file
+	meta, err := scanner.ProbeMusic(finalPath)
+	if err != nil {
+		log.Printf("re-probe after conversion job %d: %v", jobID, err)
+		meta = &scanner.MusicProbeResult{Codec: op.TargetCodec}
+	}
+
+	newFilename := filepath.Base(finalPath)
+	newExt := strings.ToLower(strings.TrimPrefix(filepath.Ext(newFilename), "."))
+
+	var newSize int64
+	if fi, statErr := os.Stat(finalPath); statErr == nil {
+		newSize = fi.Size()
+	}
+
+	effectiveAudioFormat, _ := db.GetPreferredAudioFormat()
+	albumKey := mf.Artist + "/" + mf.Album
+	if override, _ := db.GetAudioFormatOverride(mf.LibraryRootID, albumKey, "album"); override != "" {
+		effectiveAudioFormat = override
+	}
+	minBitrate, _ := db.GetPreferredMinBitrate()
+	needsAttention, attentionReasons := scanner.ComputeMusicAttentionReasons(meta.Codec, meta.Bitrate, effectiveAudioFormat, minBitrate)
+
+	db.UpdateMusicFilePath(mf.ID, finalPath, newFilename, newExt, meta.Codec, meta.Bitrate, meta.SampleRate, meta.BitDepth)
+	db.DB.Exec(`UPDATE media_files SET size_bytes = ?, scanned_at = ?, needs_attention = ?, attention_reasons = ? WHERE id = ?`,
+		newSize, time.Now(), needsAttention, attentionReasons, mf.ID)
+
+	return nil
+}
+
+func buildConvertAudioArgs(inputPath, outputPath string, op models.Operation) []string {
+	args := []string{"-y", "-i", inputPath}
+
+	switch strings.ToLower(op.TargetCodec) {
+	case "flac":
+		args = append(args, "-c:a", "flac", "-compression_level", "8")
+	case "mp3":
+		bitrate := op.TargetBitrate
+		if bitrate <= 0 {
+			bitrate = 320
+		}
+		args = append(args, "-c:a", "libmp3lame", "-b:a", fmt.Sprintf("%dk", bitrate))
+	case "aac":
+		bitrate := op.TargetBitrate
+		if bitrate <= 0 {
+			bitrate = 256
+		}
+		args = append(args, "-c:a", "aac", "-b:a", fmt.Sprintf("%dk", bitrate))
+	case "opus":
+		bitrate := op.TargetBitrate
+		if bitrate <= 0 {
+			bitrate = 192
+		}
+		args = append(args, "-c:a", "libopus", "-b:a", fmt.Sprintf("%dk", bitrate))
+	}
+
+	args = append(args, "-map_metadata", "0", outputPath)
+	return args
 }
 
 func failJob(jobID int64, errMsg string) {

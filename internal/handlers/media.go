@@ -53,6 +53,8 @@ func MediaDetailHandler(w http.ResponseWriter, r *http.Request) {
 	hasPendingJob, _ := db.HasPendingJob(id)
 	globalLangs, _ := db.GetPreferredLanguages()
 	globalSubtitleFormat, _ := db.GetPreferredSubtitleFormat()
+	globalAudioFormat, _ := db.GetPreferredAudioFormat()
+	globalMinBitrate, _ := db.GetPreferredMinBitrate()
 
 	data := map[string]interface{}{
 		"Page":                 "media",
@@ -60,6 +62,8 @@ func MediaDetailHandler(w http.ResponseWriter, r *http.Request) {
 		"HasPendingJob":        hasPendingJob,
 		"GlobalLanguages":      strings.Join(globalLangs, ", "),
 		"GlobalSubtitleFormat": globalSubtitleFormat,
+		"GlobalAudioFormat":    globalAudioFormat,
+		"GlobalMinBitrate":     globalMinBitrate,
 	}
 	render(w, "media_detail.html", data)
 }
@@ -83,9 +87,12 @@ func DeleteMediaFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if mf.LibraryType == "movies" {
+	switch mf.LibraryType {
+	case "movies":
 		w.Header().Set("HX-Redirect", "/movies")
-	} else {
+	case "music":
+		w.Header().Set("HX-Redirect", "/music")
+	default:
 		w.Header().Set("HX-Redirect", "/shows")
 	}
 	w.WriteHeader(http.StatusOK)

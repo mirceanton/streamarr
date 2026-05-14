@@ -1,0 +1,153 @@
+{{template "base" .}}
+
+{{define "content"}}
+<div class="page-header">
+    <h1>
+        <a href="/music" class="text-muted-sa text-decoration-none" style="font-size:0.85rem;font-weight:400;">
+            <i class="bi bi-music-note-beamed me-1"></i>Music
+        </a>
+        <i class="bi bi-chevron-right mx-2" style="font-size:0.75rem;color:#6c7086;"></i>
+        {{if .Artist}}<span class="text-muted-sa me-1">{{.Artist}} &mdash;</span>{{end}}{{.AlbumTitle}}
+    </h1>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" title="Set audio format preference"
+            onclick="toggleAudioFormatForm()">
+            <i class="bi bi-music-note"></i>
+        </button>
+    </div>
+</div>
+
+<div id="audioFormatFormWrapper" style="display:none;" class="mb-3">
+    <div class="card">
+        <div class="card-body py-2">
+            <form hx-post="/api/overrides/album/audio-format" hx-swap="none" class="d-flex gap-2 align-items-end">
+                <input type="hidden" name="library_root_id" value="{{.LibraryRootID}}">
+                <input type="hidden" name="album_key" value="{{.AlbumKey}}">
+                <div class="flex-grow-1">
+                    <label class="form-label mb-1" style="font-size:0.8rem;">
+                        Preferred audio format for <strong>{{.AlbumTitle}}</strong>
+                        {{if not .AudioFormatOverride}}<span class="text-muted-sa">(global: {{if $.GlobalAudioFormat}}{{upper $.GlobalAudioFormat}}{{else}}any{{end}})</span>{{end}}
+                    </label>
+                    <select class="form-select form-select-sm" name="audio_format">
+                        <option value="" {{if eq .AudioFormatOverride ""}}selected{{end}}>Any (no preference)</option>
+                        <option value="flac" {{if eq .AudioFormatOverride "flac"}}selected{{end}}>FLAC (lossless)</option>
+                        <option value="mp3" {{if eq .AudioFormatOverride "mp3"}}selected{{end}}>MP3</option>
+                        <option value="aac" {{if eq .AudioFormatOverride "aac"}}selected{{end}}>AAC</option>
+                        <option value="opus" {{if eq .AudioFormatOverride "opus"}}selected{{end}}>Opus</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-sa btn-sm">Save</button>
+                {{if .AudioFormatOverride}}
+                <button type="button" class="btn btn-outline-danger btn-sm"
+                    hx-post="/api/overrides/album/audio-format/delete"
+                    hx-include="closest form"
+                    hx-swap="none"
+                    hx-confirm="Clear audio format override for {{.AlbumTitle}} and use the global setting?">
+                    Clear
+                </button>
+                {{end}}
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="filter-bar">
+    <input type="search" class="form-control form-control-sm" id="trackSearch"
+        placeholder="Search by track..." oninput="filterTracks(this.value)"
+        style="max-width:320px;">
+    <div class="d-flex align-items-center gap-2">
+        {{if .AudioFormatOverride}}
+        <span class="badge bg-secondary" style="font-size:0.7rem;" title="Audio format override set">
+            <i class="bi bi-music-note me-1"></i>{{upper .AudioFormatOverride}}
+        </span>
+        {{end}}
+        {{if .GlobalMinBitrate}}
+        <span class="text-muted-sa" style="font-size:0.8rem;">Min bitrate: {{.GlobalMinBitrate}} kbps</span>
+        {{end}}
+    </div>
+</div>
+
+{{if .Tracks}}
+<div class="card">
+    <div class="table-responsive">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th class="sortable" onclick="sortTable(this)" style="width:2.5rem;"># <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Title <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Format <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Bitrate <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Sample Rate <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Bit Depth <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Size <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th class="sortable" onclick="sortTable(this)">Status <i class="sort-icon bi bi-arrow-down-up"></i></th>
+                    <th style="width:3rem;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .Tracks}}
+                <tr class="clickable-row {{if or (eq .ActiveJobStatus "pending") (eq .ActiveJobStatus "running")}}track-queued{{end}}"
+                    onclick="window.location='/media/{{.ID}}'">
+                    <td class="text-muted-sa" data-sort-value="{{.TrackNum}}">{{if .TrackNum}}{{.TrackNum}}{{else}}&mdash;{{end}}</td>
+                    <td>{{if .Title}}{{.Title}}{{else}}<span class="text-muted-sa">{{.Filename}}</span>{{end}}</td>
+                    <td data-sort-value="{{.AudioCodec}}">
+                        {{if .AudioCodec}}<span class="badge bg-secondary" style="font-size:0.7rem;">{{upper .AudioCodec}}</span>{{else}}&mdash;{{end}}
+                    </td>
+                    <td data-sort-value="{{.Bitrate}}">
+                        {{if .Bitrate}}<span class="text-muted-sa" style="font-size:0.85rem;">{{bitrateKbps .Bitrate}} kbps</span>{{else}}&mdash;{{end}}
+                    </td>
+                    <td data-sort-value="{{.SampleRate}}">
+                        {{if .SampleRate}}<span class="text-muted-sa" style="font-size:0.85rem;">{{.SampleRate}} Hz</span>{{else}}&mdash;{{end}}
+                    </td>
+                    <td data-sort-value="{{.BitDepth}}">
+                        {{if .BitDepth}}<span class="text-muted-sa" style="font-size:0.85rem;">{{.BitDepth}}-bit</span>{{else}}&mdash;{{end}}
+                    </td>
+                    <td class="text-muted-sa" data-sort-value="{{.SizeBytes}}">{{formatSize .SizeBytes}}</td>
+                    <td data-sort-value="{{if eq .ActiveJobStatus "running"}}3{{else if eq .ActiveJobStatus "pending"}}2{{else if .NeedsAttention}}1{{else}}0{{end}}">
+                        {{if eq .ActiveJobStatus "running"}}
+                        <span class="badge badge-status-running" style="font-size:0.7rem;"><i class="bi bi-gear-fill me-1"></i>Processing</span>
+                        {{else if eq .ActiveJobStatus "pending"}}
+                        <span class="badge badge-status-pending" style="font-size:0.7rem;"><i class="bi bi-clock me-1"></i>Queued</span>
+                        {{else if .NeedsAttention}}
+                        <span class="badge badge-attention">Needs Attention</span>
+                        <div style="font-size:0.72rem;color:var(--sa-text-muted);margin-top:0.2rem;white-space:normal;">{{.AttentionReasons}}</div>
+                        {{else}}
+                        <span class="badge bg-secondary" style="font-size:0.7rem;">OK</span>
+                        {{end}}
+                    </td>
+                    <td onclick="event.stopPropagation()">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="rescanFile({{.ID}}, this)" title="Rescan this track">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{else}}
+<div class="empty-state">
+    <i class="bi bi-music-note-beamed"></i>
+    <h5>No Tracks Found</h5>
+    <p>No tracks match the current filter.</p>
+</div>
+{{end}}
+{{end}}
+
+{{define "scripts"}}
+<script>
+function toggleAudioFormatForm() {
+    const w = document.getElementById('audioFormatFormWrapper');
+    w.style.display = w.style.display === 'none' ? 'block' : 'none';
+}
+
+function filterTracks(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('.card table tbody tr').forEach(function(row) {
+        const title = row.cells[1].textContent.toLowerCase();
+        row.style.display = (!q || title.includes(q)) ? '' : 'none';
+    });
+}
+</script>
+{{end}}
