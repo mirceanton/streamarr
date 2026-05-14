@@ -394,8 +394,8 @@ func scanMusicFile(root *models.LibraryRoot, path string) error {
 
 // parseMusicDirectoryMeta infers artist and album from path structure: /.../<Artist>/<Album>/track.flac
 func parseMusicDirectoryMeta(filePath string) (artist, album string) {
-	dir := filepath.Dir(filePath)       // .../Artist/Album
-	albumDir := filepath.Base(dir)      // Album
+	dir := filepath.Dir(filePath)                 // .../Artist/Album
+	albumDir := filepath.Base(dir)                // Album
 	artistDir := filepath.Base(filepath.Dir(dir)) // Artist
 	return artistDir, albumDir
 }
@@ -629,7 +629,7 @@ func ScanExternalSubtitles(mf *models.MediaFile) ([]models.ExternalSubtitleFile,
 // and the file extension (e.g. "eng.forced" → lang="eng", forced=true).
 func parseExternalSubSuffix(suffix string) (lang string, forced, sdh bool) {
 	if suffix == "" {
-		return
+		return lang, forced, sdh
 	}
 	for _, p := range strings.Split(strings.ToLower(suffix), ".") {
 		if p == "" {
@@ -646,7 +646,7 @@ func parseExternalSubSuffix(suffix string) (lang string, forced, sdh bool) {
 			}
 		}
 	}
-	return
+	return lang, forced, sdh
 }
 
 // IsScanRunning returns current scan status.
