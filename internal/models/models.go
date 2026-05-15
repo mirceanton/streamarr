@@ -136,6 +136,7 @@ type Album struct {
 	Title               string
 	Artist              string
 	LibraryRootID       int64
+	TrackCount          int
 	Tracks              []MediaFile
 	NeedsAttention      bool
 	AttentionTrackCount int

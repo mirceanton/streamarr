@@ -957,6 +957,7 @@ func GetAlbums(rootID int64) ([]models.Album, error) {
 			return nil, err
 		}
 		a.LibraryRootID = rootID
+		a.TrackCount = trackCount
 		a.NeedsAttention = attentionCount > 0
 		a.AttentionTrackCount = attentionCount
 		albums = append(albums, a)

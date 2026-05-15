@@ -347,7 +347,7 @@ func scanMusicFile(root *models.LibraryRoot, path string) error {
 	}
 
 	// Fall back to directory structure for artist/album when tags are missing
-	dirArtist, dirAlbum := parseMusicDirectoryMeta(path)
+	dirArtist, dirAlbum := parseMusicDirectoryMeta(path, root.Path)
 	artist := firstNonEmpty(meta.Artist, dirArtist)
 	album := firstNonEmpty(meta.Album, dirAlbum)
 
@@ -392,12 +392,27 @@ func scanMusicFile(root *models.LibraryRoot, path string) error {
 	return err
 }
 
-// parseMusicDirectoryMeta infers artist and album from path structure: /.../<Artist>/<Album>/track.flac
-func parseMusicDirectoryMeta(filePath string) (artist, album string) {
-	dir := filepath.Dir(filePath)                 // .../Artist/Album
-	albumDir := filepath.Base(dir)                // Album
-	artistDir := filepath.Base(filepath.Dir(dir)) // Artist
-	return artistDir, albumDir
+// parseMusicDirectoryMeta infers artist and album from the path relative to rootPath:
+//
+//	<root>/track.ext              → ("", "")
+//	<root>/<Artist>/track.ext     → (Artist, "")
+//	<root>/<Artist>/<Album>/…     → (Artist, Album)
+func parseMusicDirectoryMeta(filePath, rootPath string) (artist, album string) {
+	rel, err := filepath.Rel(rootPath, filePath)
+	if err != nil {
+		return "", ""
+	}
+	parts := strings.Split(filepath.ToSlash(rel), "/")
+	// parts[-1] is the filename; parts[:-1] are directories under the root
+	dirs := parts[:len(parts)-1]
+	switch len(dirs) {
+	case 0:
+		return "", ""
+	case 1:
+		return dirs[0], ""
+	default:
+		return dirs[0], dirs[1]
+	}
 }
 
 // ComputeMusicAttentionReasons returns whether a music file needs attention and why.

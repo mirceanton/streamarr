@@ -41,6 +41,7 @@ var funcMap = template.FuncMap{
 	"subLangs":    subTrackLangs,
 	"extSubLangs": extSubLangs,
 	"pathEscape":  url.PathEscape,
+	"urlQuery":    url.QueryEscape,
 	"bitrateKbps": func(bps int64) int64 { return bps / 1000 },
 }
 

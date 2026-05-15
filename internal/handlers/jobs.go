@@ -150,7 +150,7 @@ func CreateJobHandler(w http.ResponseWriter, r *http.Request) {
 	case "movies":
 		redirectURL = "/movies"
 	case "music":
-		redirectURL = "/music/" + url.PathEscape(mf.Artist+"/"+mf.Album)
+		redirectURL = albumPageURL(mf.Artist+"/"+mf.Album, strconv.FormatInt(mf.LibraryRootID, 10))
 	default:
 		redirectURL = "/shows/" + url.PathEscape(mf.Title)
 	}

@@ -87,7 +87,7 @@ func main() {
 
 	// Music
 	r.Get("/music", handlers.MusicHandler)
-	r.Get("/music/{albumKey}", handlers.AlbumTracksHandler)
+	r.Get("/music/album", handlers.AlbumTracksHandler)
 	r.Post("/api/settings/audio-format", handlers.UpdateAudioFormatHandler)
 	r.Post("/api/settings/min-bitrate", handlers.UpdateMinBitrateHandler)
 	r.Post("/api/overrides/album/audio-format", handlers.SetAlbumAudioFormatOverrideHandler)

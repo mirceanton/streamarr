@@ -34,10 +34,10 @@
                 {{range .Albums}}
                 <tr class="clickable-row"
                     data-album="{{.Artist}} {{.Title}}"
-                    onclick="window.location='/music/{{pathEscape (printf "%s/%s" .Artist .Title)}}?library_root_id={{.LibraryRootID}}'">
+                    onclick="window.location='/music/album?artist={{urlQuery .Artist}}&album={{urlQuery .Title}}&library_root_id={{.LibraryRootID}}'">
                     <td><strong>{{if .Artist}}{{.Artist}}{{else}}<span class="text-muted-sa">Unknown Artist</span>{{end}}</strong></td>
                     <td>{{if .Title}}{{.Title}}{{else}}<span class="text-muted-sa">Unknown Album</span>{{end}}</td>
-                    <td class="text-muted-sa" data-sort-value="{{len .Tracks}}">{{len .Tracks}}</td>
+                    <td class="text-muted-sa" data-sort-value="{{.TrackCount}}">{{.TrackCount}}</td>
                     <td>
                         {{if .AudioFormatOverride}}
                         <span class="badge bg-secondary" style="font-size:0.7rem;" title="Audio format override set">

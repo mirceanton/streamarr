@@ -12,7 +12,7 @@
                 <i class="bi bi-music-note-beamed me-1"></i>Music
             </a>
             <i class="bi bi-chevron-right mx-2" style="font-size:0.75rem;color:#6c7086;"></i>
-            <a href="/music/{{pathEscape (printf "%s/%s" .Artist .Album)}}?library_root_id={{.LibraryRootID}}"
+            <a href="/music/album?artist={{urlQuery .Artist}}&amp;album={{urlQuery .Album}}&amp;library_root_id={{.LibraryRootID}}"
                class="text-decoration-none text-muted-sa" style="font-size:0.85rem;font-weight:400;">
                 {{if .Artist}}{{.Artist}} &mdash; {{end}}{{.Album}}
             </a>

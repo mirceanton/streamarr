@@ -7,10 +7,20 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/mirceanton/streamarr/internal/db"
 	"github.com/mirceanton/streamarr/internal/models"
 )
+
+// albumPageURL builds the query-param URL for an album detail page.
+// albumKey is the internal "artist/album" composite key.
+func albumPageURL(albumKey, libRootIDStr string) string {
+	parts := strings.SplitN(albumKey, "/", 2)
+	artist, album := "", albumKey
+	if len(parts) == 2 {
+		artist, album = parts[0], parts[1]
+	}
+	return "/music/album?artist=" + url.QueryEscape(artist) + "&album=" + url.QueryEscape(album) + "&library_root_id=" + libRootIDStr
+}
 
 func MusicHandler(w http.ResponseWriter, r *http.Request) {
 	needsAttention := r.URL.Query().Get("attention") == "1"
@@ -69,26 +79,15 @@ func MusicHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func AlbumTracksHandler(w http.ResponseWriter, r *http.Request) {
-	// albumKey is URL-encoded "artist/album"
-	albumKey, err := url.PathUnescape(chi.URLParam(r, "albumKey"))
-	if err != nil {
-		http.Error(w, "Invalid album key", http.StatusBadRequest)
-		return
-	}
+	artist := r.URL.Query().Get("artist")
+	albumTitle := r.URL.Query().Get("album")
+	albumKey := artist + "/" + albumTitle
 
 	libRootIDStr := r.URL.Query().Get("library_root_id")
 	libRootID, err := strconv.ParseInt(libRootIDStr, 10, 64)
 	if err != nil {
 		http.Error(w, "Invalid library_root_id", http.StatusBadRequest)
 		return
-	}
-
-	parts := strings.SplitN(albumKey, "/", 2)
-	artist := ""
-	albumTitle := albumKey
-	if len(parts) == 2 {
-		artist = parts[0]
-		albumTitle = parts[1]
 	}
 
 	tracks, err := db.GetTracksByAlbum(artist, albumTitle, libRootID)
@@ -148,7 +147,7 @@ func SetAlbumAudioFormatOverrideHandler(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	redirectURL := "/music/" + url.PathEscape(albumKey) + "?library_root_id=" + libRootIDStr
+	redirectURL := albumPageURL(albumKey, libRootIDStr)
 	w.Header().Set("HX-Redirect", redirectURL)
 	w.WriteHeader(http.StatusOK)
 }
@@ -173,7 +172,7 @@ func DeleteAlbumAudioFormatOverridePostHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	redirectURL := "/music/" + url.PathEscape(albumKey) + "?library_root_id=" + libRootIDStr
+	redirectURL := albumPageURL(albumKey, libRootIDStr)
 	w.Header().Set("HX-Redirect", redirectURL)
 	w.WriteHeader(http.StatusOK)
 }
