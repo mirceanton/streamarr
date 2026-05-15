@@ -334,4 +334,3 @@ func UpdateMinBitrateHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("HX-Redirect", "/settings")
 	w.WriteHeader(http.StatusOK)
 }
-

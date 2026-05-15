@@ -394,8 +394,8 @@ func scanMusicFile(root *models.LibraryRoot, path string) error {
 
 // parseMusicDirectoryMeta infers artist and album from path structure: /.../<Artist>/<Album>/track.flac
 func parseMusicDirectoryMeta(filePath string) (artist, album string) {
-	dir := filepath.Dir(filePath)       // .../Artist/Album
-	albumDir := filepath.Base(dir)      // Album
+	dir := filepath.Dir(filePath)                 // .../Artist/Album
+	albumDir := filepath.Base(dir)                // Album
 	artistDir := filepath.Base(filepath.Dir(dir)) // Artist
 	return artistDir, albumDir
 }

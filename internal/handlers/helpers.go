@@ -37,11 +37,11 @@ var funcMap = template.FuncMap{
 		}
 		return ""
 	},
-	"audioLangs":   audioTrackLangs,
-	"subLangs":     subTrackLangs,
-	"extSubLangs":  extSubLangs,
-	"pathEscape":   url.PathEscape,
-	"bitrateKbps":  func(bps int64) int64 { return bps / 1000 },
+	"audioLangs":  audioTrackLangs,
+	"subLangs":    subTrackLangs,
+	"extSubLangs": extSubLangs,
+	"pathEscape":  url.PathEscape,
+	"bitrateKbps": func(bps int64) int64 { return bps / 1000 },
 }
 
 func InitTemplates() error {
