@@ -10,6 +10,32 @@ import (
 	"github.com/mirceanton/streamarr/internal/models"
 )
 
+// flexInt unmarshals from either a JSON number or a JSON string containing a number.
+// ffprobe returns bits_per_raw_sample and bits_per_sample as strings in some versions.
+type flexInt int
+
+func (f *flexInt) UnmarshalJSON(data []byte) error {
+	var n int
+	if err := json.Unmarshal(data, &n); err == nil {
+		*f = flexInt(n)
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	if s == "" {
+		*f = 0
+		return nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+	*f = flexInt(n)
+	return nil
+}
+
 // ffprobeOutput represents the JSON output from ffprobe.
 type ffprobeOutput struct {
 	Streams []ffprobeStream `json:"streams"`
@@ -17,14 +43,14 @@ type ffprobeOutput struct {
 }
 
 type ffprobeStream struct {
-	Index            int    `json:"index"`
-	CodecName        string `json:"codec_name"`
-	CodecType        string `json:"codec_type"` // video, audio, subtitle
-	Channels         int    `json:"channels"`
-	BitRate          string `json:"bit_rate"`
-	SampleRate       string `json:"sample_rate"`
-	BitsPerRawSample int    `json:"bits_per_raw_sample"`
-	BitsPerSample    int    `json:"bits_per_sample"`
+	Index            int     `json:"index"`
+	CodecName        string  `json:"codec_name"`
+	CodecType        string  `json:"codec_type"` // video, audio, subtitle
+	Channels         int     `json:"channels"`
+	BitRate          string  `json:"bit_rate"`
+	SampleRate       string  `json:"sample_rate"`
+	BitsPerRawSample flexInt `json:"bits_per_raw_sample"`
+	BitsPerSample    flexInt `json:"bits_per_sample"`
 	Tags             struct {
 		Language    string `json:"language"`
 		Title       string `json:"title"`
@@ -211,9 +237,9 @@ func ProbeMusic(filePath string) (*MusicProbeResult, error) {
 
 		// Bit depth: prefer bits_per_raw_sample, fall back to bits_per_sample
 		if s.BitsPerRawSample > 0 {
-			res.BitDepth = s.BitsPerRawSample
+			res.BitDepth = int(s.BitsPerRawSample)
 		} else if s.BitsPerSample > 0 {
-			res.BitDepth = s.BitsPerSample
+			res.BitDepth = int(s.BitsPerSample)
 		}
 
 		// Sample rate
