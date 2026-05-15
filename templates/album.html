@@ -10,6 +10,10 @@
         {{if .Artist}}<span class="text-muted-sa me-1">{{.Artist}} &mdash;</span>{{end}}{{.AlbumTitle}}
     </h1>
     <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary btn-sm" title="Bulk convert all tracks"
+            onclick="openBulkConvert()">
+            <i class="bi bi-arrow-repeat me-1"></i>Bulk Convert
+        </button>
         <button class="btn btn-outline-secondary btn-sm" title="Set audio format preference"
             onclick="toggleAudioFormatForm()">
             <i class="bi bi-music-note"></i>
@@ -133,10 +137,50 @@
     <p>No tracks match the current filter.</p>
 </div>
 {{end}}
+
+<!-- Bulk Convert Modal -->
+<div class="modal fade" id="bulkConvertModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-arrow-repeat me-2"></i>Bulk Convert — {{if .Artist}}{{.Artist}} &mdash; {{end}}{{.AlbumTitle}}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-sm-6">
+                        <label class="form-label mb-1" style="font-size:0.85rem;">Target format</label>
+                        <select class="form-select form-select-sm" id="bulkTargetCodec" onchange="updateBulkBitrateUI()">
+                            <option value="flac">FLAC (lossless)</option>
+                            <option value="mp3">MP3 (lossy)</option>
+                            <option value="aac">AAC (lossy)</option>
+                            <option value="opus">Opus (lossy)</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6" id="bulkBitrateSection" style="display:none;">
+                        <label class="form-label mb-1" style="font-size:0.85rem;">Target bitrate (kbps)</label>
+                        <input type="number" class="form-control form-control-sm" id="bulkTargetBitrate" value="320" min="64" max="1411">
+                    </div>
+                </div>
+                <div id="bulkConvertResults" class="mt-3" style="display:none;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sa btn-sm" id="bulkConvertApplyBtn" onclick="submitBulkConvert()">
+                    <i class="bi bi-play-fill me-1"></i>Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {{end}}
 
 {{define "scripts"}}
 <script>
+const bulkArtist = {{.Artist}};
+const bulkAlbum = {{.AlbumTitle}};
+const bulkLibraryRootID = {{.LibraryRootID}};
+
 function toggleAudioFormatForm() {
     const w = document.getElementById('audioFormatFormWrapper');
     w.style.display = w.style.display === 'none' ? 'block' : 'none';
@@ -148,6 +192,71 @@ function filterTracks(query) {
         const title = row.cells[1].textContent.toLowerCase();
         row.style.display = (!q || title.includes(q)) ? '' : 'none';
     });
+}
+
+function openBulkConvert() {
+    document.getElementById('bulkConvertResults').style.display = 'none';
+    document.getElementById('bulkConvertApplyBtn').disabled = false;
+    updateBulkBitrateUI();
+    new bootstrap.Modal(document.getElementById('bulkConvertModal')).show();
+}
+
+function updateBulkBitrateUI() {
+    const codec = document.getElementById('bulkTargetCodec').value;
+    document.getElementById('bulkBitrateSection').style.display = (codec === 'flac') ? 'none' : '';
+}
+
+function submitBulkConvert() {
+    const codec = document.getElementById('bulkTargetCodec').value;
+    const bitrateInput = document.getElementById('bulkTargetBitrate');
+    const bitrate = (codec === 'flac') ? 0 : (parseInt(bitrateInput.value) || 320);
+    const applyBtn = document.getElementById('bulkConvertApplyBtn');
+    applyBtn.disabled = true;
+
+    fetch('/api/bulk-jobs/album', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            artist: bulkArtist,
+            album: bulkAlbum,
+            library_root_id: bulkLibraryRootID,
+            target_codec: codec,
+            target_bitrate: bitrate
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        const results = data.results || [];
+        const queued = results.filter(r => !r.skipped);
+        const skipped = results.filter(r => r.skipped);
+        let html = '';
+        if (queued.length > 0) {
+            html += '<div class="alert alert-success py-2" style="font-size:0.85rem;"><i class="bi bi-check-circle me-1"></i><strong>' + queued.length + ' track(s) queued</strong></div>';
+        }
+        if (skipped.length > 0) {
+            html += '<details><summary style="font-size:0.85rem;cursor:pointer;">' + skipped.length + ' skipped</summary><ul class="mt-2 mb-0" style="font-size:0.8rem;">';
+            skipped.forEach(r => {
+                html += '<li><strong>' + escHtml(r.filename) + '</strong>: ' + escHtml(r.reason) + '</li>';
+            });
+            html += '</ul></details>';
+        }
+        if (results.length === 0) {
+            html = '<div class="alert alert-warning py-2" style="font-size:0.85rem;">No tracks found.</div>';
+        }
+        const resultsDiv = document.getElementById('bulkConvertResults');
+        resultsDiv.innerHTML = html;
+        resultsDiv.style.display = '';
+    })
+    .catch(() => {
+        const resultsDiv = document.getElementById('bulkConvertResults');
+        resultsDiv.innerHTML = '<div class="alert alert-danger py-2" style="font-size:0.85rem;">Request failed.</div>';
+        resultsDiv.style.display = '';
+        applyBtn.disabled = false;
+    });
+}
+
+function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
 {{end}}

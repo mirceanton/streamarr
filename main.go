@@ -94,6 +94,7 @@ func main() {
 	r.Post("/api/overrides/album/audio-format/delete", handlers.DeleteAlbumAudioFormatOverridePostHandler)
 
 	// Bulk operations
+	r.Post("/api/bulk-jobs/album", handlers.BulkJobsAlbumHandler)
 	r.Get("/api/series/tracks", handlers.GetSeriesTracksHandler)
 	r.Post("/api/bulk-jobs/series", handlers.BulkJobsSeriesHandler)
 

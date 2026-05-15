@@ -381,6 +381,81 @@ func sortedKeys(m map[string]bool) []string {
 	return keys
 }
 
+// BulkAlbumJobRequest is the JSON body for POST /api/bulk-jobs/album.
+type BulkAlbumJobRequest struct {
+	Artist        string `json:"artist"`
+	Album         string `json:"album"`
+	LibraryRootID int64  `json:"library_root_id"`
+	TargetCodec   string `json:"target_codec"`
+	TargetBitrate int    `json:"target_bitrate"`
+}
+
+// BulkJobsAlbumHandler creates one convert_audio job per track in an album.
+// POST /api/bulk-jobs/album
+func BulkJobsAlbumHandler(w http.ResponseWriter, r *http.Request) {
+	var req BulkAlbumJobRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if req.LibraryRootID == 0 || req.TargetCodec == "" {
+		http.Error(w, "library_root_id and target_codec are required", http.StatusBadRequest)
+		return
+	}
+
+	targetCodec := strings.ToLower(strings.TrimSpace(req.TargetCodec))
+
+	tracks, err := db.GetTracksByAlbum(req.Artist, req.Album, req.LibraryRootID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(tracks) == 0 {
+		http.Error(w, "no tracks found for this album", http.StatusNotFound)
+		return
+	}
+
+	type result struct {
+		Filename string `json:"filename"`
+		JobID    int64  `json:"job_id"`
+		Skipped  bool   `json:"skipped"`
+		Reason   string `json:"reason,omitempty"`
+	}
+	var results []result
+
+	for _, track := range tracks {
+		hasPending, err := db.HasPendingJob(track.ID)
+		if err != nil {
+			results = append(results, result{Filename: track.Filename, Skipped: true, Reason: "db error checking pending job"})
+			continue
+		}
+		if hasPending {
+			results = append(results, result{Filename: track.Filename, Skipped: true, Reason: "already has pending or running job"})
+			continue
+		}
+		if strings.EqualFold(track.AudioCodec, targetCodec) {
+			results = append(results, result{Filename: track.Filename, Skipped: true, Reason: "already in target format"})
+			continue
+		}
+
+		ops := []models.Operation{{
+			Type:          "convert_audio",
+			TargetCodec:   targetCodec,
+			TargetBitrate: req.TargetBitrate,
+		}}
+		jobID, err := db.CreateJob(track.ID, ops)
+		if err != nil {
+			results = append(results, result{Filename: track.Filename, Skipped: true, Reason: "failed to create job: " + err.Error()})
+			continue
+		}
+		processor.Enqueue(jobID)
+		results = append(results, result{Filename: track.Filename, JobID: jobID})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"results": results})
+}
+
 // sortSubtitleTracks sorts a SubtitleTrackInfo slice by language then format.
 func sortSubtitleTracks(tracks []SubtitleTrackInfo) {
 	for i := 0; i < len(tracks); i++ {
