@@ -161,6 +161,7 @@ type DashboardStats struct {
 	TotalEpisodes         int
 	EpisodesNeedAttention int
 	TotalTracks           int
+	TotalAlbums           int
 	TracksNeedAttention   int
 	TotalJobs             int
 	RunningJobs           int

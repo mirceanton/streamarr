@@ -752,11 +752,12 @@ func GetDashboardStats() (*models.DashboardStats, error) {
 	err = DB.QueryRow(`
 		SELECT
 			COUNT(*),
-			COALESCE(SUM(CASE WHEN mf.needs_attention = 1 THEN 1 ELSE 0 END), 0)
+			COALESCE(SUM(CASE WHEN mf.needs_attention = 1 THEN 1 ELSE 0 END), 0),
+			COUNT(DISTINCT COALESCE(mf.artist, '') || '/' || COALESCE(mf.album, ''))
 		FROM media_files mf
 		JOIN library_roots lr ON mf.library_root_id = lr.id
 		WHERE lr.type = 'music'`).
-		Scan(&stats.TotalTracks, &stats.TracksNeedAttention)
+		Scan(&stats.TotalTracks, &stats.TracksNeedAttention, &stats.TotalAlbums)
 	if err != nil {
 		return nil, err
 	}
