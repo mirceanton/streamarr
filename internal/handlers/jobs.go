@@ -80,7 +80,7 @@ func CreateJobHandler(w http.ResponseWriter, r *http.Request) {
 			audioRemoveCount++
 		}
 	}
-	if audioRemoveCount >= len(mf.AudioTracks) {
+	if len(mf.AudioTracks) > 0 && audioRemoveCount >= len(mf.AudioTracks) {
 		http.Error(w, "Cannot remove all audio tracks", http.StatusBadRequest)
 		return
 	}
