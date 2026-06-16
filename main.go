@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/mirceanton/streamarr/internal/db"
 	"github.com/mirceanton/streamarr/internal/handlers"
+	"github.com/mirceanton/streamarr/internal/mcp"
 	"github.com/mirceanton/streamarr/internal/processor"
 	"github.com/mirceanton/streamarr/internal/scheduler"
 )
@@ -100,6 +101,9 @@ func main() {
 
 	// Metrics
 	r.Handle("/metrics", handlers.MetricsHandler())
+
+	// MCP server (streamable HTTP)
+	r.Handle("/mcp", mcp.NewHTTPHandler())
 
 	log.Printf("StreamArr starting on port %s", port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", port), r); err != nil {
