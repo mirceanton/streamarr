@@ -74,8 +74,10 @@
         }
         .main-content {
             margin-left: 220px;
+            margin-right: 0;
             padding: 1.5rem 2rem;
             min-height: 100vh;
+            transition: margin-right 0.3s ease;
         }
         .page-header {
             display: flex;
@@ -205,13 +207,17 @@
             box-shadow: 0 0 0 0.15rem rgba(93, 156, 236, 0.25);
         }
         .ops-panel {
-            position: sticky;
-            bottom: 0;
+            --bs-offcanvas-width: 360px;
             background-color: var(--sa-bg-secondary);
-            border: 1px solid var(--sa-border);
-            border-radius: 6px 6px 0 0;
-            padding: 1rem;
-            z-index: 50;
+            border-left: 1px solid var(--sa-border);
+            color: var(--sa-text-primary);
+        }
+        .ops-panel .offcanvas-header {
+            border-bottom: 1px solid var(--sa-border);
+        }
+        .ops-panel .offcanvas-footer {
+            border-top: 1px solid var(--sa-border);
+            padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px));
         }
         .op-item {
             display: flex;
@@ -222,6 +228,24 @@
             border-radius: 4px;
             margin-bottom: 0.25rem;
             font-size: 0.85rem;
+        }
+        .ops-toggle-btn {
+            position: fixed;
+            right: 1.5rem;
+            bottom: 1.5rem;
+            z-index: 1040;
+            border-radius: 999px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        }
+        @media (min-width: 769px) {
+            .main-content.ops-open {
+                margin-right: 360px;
+            }
+        }
+        @media (max-width: 480px) {
+            .ops-panel {
+                --bs-offcanvas-width: 100vw;
+            }
         }
         .series-header {
             cursor: pointer;
@@ -329,8 +353,8 @@
                 margin-left: 0;
                 padding: 1rem 1rem calc(64px + env(safe-area-inset-bottom, 0px));
             }
-            .ops-panel {
-                bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+            .ops-toggle-btn {
+                bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 1rem);
             }
             #sa-toast-container {
                 bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
