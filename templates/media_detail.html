@@ -185,18 +185,24 @@
 {{end}}
 
 <!-- Music Ops Panel -->
-<div class="ops-panel" id="opsPanel" style="display:none;">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Pending Operations</h6>
-        <div>
-            <button class="btn btn-outline-secondary btn-sm me-2" onclick="clearOps()">Clear All</button>
-            <button class="btn btn-sa btn-sm" onclick="applyOps()">
-                <i class="bi bi-play-fill"></i> Apply
+<div class="offcanvas offcanvas-end ops-panel" tabindex="-1" id="opsPanel" data-bs-backdrop="false" data-bs-scroll="true">
+    <div class="offcanvas-header">
+        <h6 class="offcanvas-title mb-0"><i class="bi bi-list-check me-2"></i>Pending Operations</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column p-3">
+        <div id="opsList" class="flex-grow-1 overflow-auto mb-3"></div>
+        <div class="d-grid gap-2 offcanvas-footer">
+            <button class="btn btn-sa" onclick="applyOps()">
+                <i class="bi bi-play-fill"></i> Start Job
             </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="clearOps()">Cancel</button>
         </div>
     </div>
-    <div id="opsList"></div>
 </div>
+<button type="button" class="btn btn-sa ops-toggle-btn d-none" id="opsToggleBtn" onclick="toggleOpsPanel()">
+    <i class="bi bi-list-check me-1"></i><span id="opsToggleCount">0</span> pending
+</button>
 
 {{else}}
 
@@ -563,18 +569,24 @@
 {{end}}
 
 <!-- Pending Operations Panel -->
-<div class="ops-panel" id="opsPanel" style="display:none;">
-    <div class="d-flex justify-content-between align-items-center mb-2">
-        <h6 class="mb-0"><i class="bi bi-list-check me-2"></i>Pending Operations</h6>
-        <div>
-            <button class="btn btn-outline-secondary btn-sm me-2" onclick="clearOps()">Clear All</button>
-            <button class="btn btn-sa btn-sm" onclick="applyOps()" {{if $.HasPendingJob}}disabled{{end}}>
-                <i class="bi bi-play-fill"></i> Apply
+<div class="offcanvas offcanvas-end ops-panel" tabindex="-1" id="opsPanel" data-bs-backdrop="false" data-bs-scroll="true">
+    <div class="offcanvas-header">
+        <h6 class="offcanvas-title mb-0"><i class="bi bi-list-check me-2"></i>Pending Operations</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column p-3">
+        <div id="opsList" class="flex-grow-1 overflow-auto mb-3"></div>
+        <div class="d-grid gap-2 offcanvas-footer">
+            <button class="btn btn-sa" onclick="applyOps()" {{if $.HasPendingJob}}disabled{{end}}>
+                <i class="bi bi-play-fill"></i> Start Job
             </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="clearOps()">Cancel</button>
         </div>
     </div>
-    <div id="opsList"></div>
 </div>
+<button type="button" class="btn btn-sa ops-toggle-btn d-none" id="opsToggleBtn" onclick="toggleOpsPanel()">
+    <i class="bi bi-list-check me-1"></i><span id="opsToggleCount">0</span> pending
+</button>
 
 {{end}}
 {{end}}
@@ -583,8 +595,13 @@
 {{define "scripts"}}
 <script>
 let operations = [];
+let opsOffcanvas = null;
 const mediaFileId = {{.File.ID}};
 const sourceAudioCodec = '{{.File.AudioCodec}}';
+
+function toggleOpsPanel() {
+    if (opsOffcanvas) opsOffcanvas.toggle();
+}
 
 function addRemoveOp(type, streamIndex, label) {
     // Check if already added
@@ -682,14 +699,18 @@ function syncTrackStates() {
 }
 
 function renderOps() {
-    const panel = document.getElementById('opsPanel');
+    const toggleBtn = document.getElementById('opsToggleBtn');
+    const toggleCount = document.getElementById('opsToggleCount');
     const list = document.getElementById('opsList');
     if (operations.length === 0) {
-        panel.style.display = 'none';
+        toggleBtn.classList.add('d-none');
+        if (opsOffcanvas) opsOffcanvas.hide();
         syncTrackStates();
         return;
     }
-    panel.style.display = 'block';
+    const wasEmpty = toggleBtn.classList.contains('d-none');
+    toggleBtn.classList.remove('d-none');
+    toggleCount.textContent = operations.length;
     list.innerHTML = '';
     operations.forEach((op, i) => {
         const div = document.createElement('div');
@@ -719,6 +740,7 @@ function renderOps() {
             '<button class="btn btn-outline-secondary btn-sm" style="padding:0.1rem 0.3rem;font-size:0.7rem;" onclick="removeOp(' + i + ')"><i class="bi bi-x"></i></button>';
         list.appendChild(div);
     });
+    if (wasEmpty && opsOffcanvas) opsOffcanvas.show();
     syncTrackStates();
 }
 
@@ -846,6 +868,15 @@ function applyOps() {
     form.submit();
 }
 
-document.addEventListener('DOMContentLoaded', function() { updateConvertUI(); });
+document.addEventListener('DOMContentLoaded', function() {
+    updateConvertUI();
+    const opsPanelEl = document.getElementById('opsPanel');
+    if (opsPanelEl) {
+        opsOffcanvas = new bootstrap.Offcanvas(opsPanelEl);
+        const mainContent = document.querySelector('.main-content');
+        opsPanelEl.addEventListener('show.bs.offcanvas', () => mainContent.classList.add('ops-open'));
+        opsPanelEl.addEventListener('hidden.bs.offcanvas', () => mainContent.classList.remove('ops-open'));
+    }
+});
 </script>
 {{end}}
