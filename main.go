@@ -72,6 +72,8 @@ func main() {
 	r.Post("/api/settings/libraries/{id}/schedule", handlers.UpdateLibraryScanScheduleHandler)
 	r.Delete("/api/media/{id}", handlers.DeleteMediaFileHandler)
 	r.Post("/api/media/{id}/rescan", handlers.RescanFileHandler)
+	r.Post("/api/media/{id}/suppress-warnings", handlers.SuppressWarningsHandler)
+	r.Delete("/api/media/{id}/suppress-warnings", handlers.UnsuppressWarningsHandler)
 	r.Post("/api/series/rescan", handlers.RescanSeriesHandler)
 	r.Post("/api/series/delete", handlers.DeleteSeriesHandler)
 	r.Post("/api/overrides/movie/{id}", handlers.SetMovieLanguageOverrideHandler)

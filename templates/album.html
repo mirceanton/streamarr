@@ -115,14 +115,27 @@
                         {{else if .NeedsAttention}}
                         <span class="badge badge-attention">Needs Attention</span>
                         <div style="font-size:0.72rem;color:var(--sa-text-muted);margin-top:0.2rem;white-space:normal;">{{.AttentionReasons}}</div>
+                        {{else if and .WarningsSuppressed .AttentionReasons}}
+                        <span class="badge bg-secondary" style="font-size:0.7rem;" title="{{.AttentionReasons}}"><i class="bi bi-bell-slash me-1"></i>Suppressed</span>
                         {{else}}
                         <span class="badge bg-secondary" style="font-size:0.7rem;">OK</span>
                         {{end}}
                     </td>
                     <td onclick="event.stopPropagation()">
-                        <button class="btn btn-outline-secondary btn-sm" onclick="rescanFile({{.ID}}, this)" title="Rescan this track">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="rescanFile({{.ID}}, this)" title="Rescan this track">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                            {{if .NeedsAttention}}
+                            <button class="btn btn-outline-secondary btn-sm" hx-post="/api/media/{{.ID}}/suppress-warnings" hx-swap="none" title="Suppress warnings for this track">
+                                <i class="bi bi-bell-slash"></i>
+                            </button>
+                            {{else if and .WarningsSuppressed .AttentionReasons}}
+                            <button class="btn btn-outline-secondary btn-sm" hx-delete="/api/media/{{.ID}}/suppress-warnings" hx-swap="none" title="Unsuppress warnings for this track">
+                                <i class="bi bi-bell"></i>
+                            </button>
+                            {{end}}
+                        </div>
                     </td>
                 </tr>
                 {{end}}

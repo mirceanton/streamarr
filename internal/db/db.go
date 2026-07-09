@@ -164,6 +164,15 @@ func migrate() error {
 		}
 	}
 
+	// Add warnings_suppressed column to media_files if it doesn't exist (idempotent)
+	var warningsSuppressedColCount int
+	DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('media_files') WHERE name = 'warnings_suppressed'`).Scan(&warningsSuppressedColCount)
+	if warningsSuppressedColCount == 0 {
+		if _, err := DB.Exec(`ALTER TABLE media_files ADD COLUMN warnings_suppressed BOOLEAN NOT NULL DEFAULT 0`); err != nil {
+			return fmt.Errorf("add warnings_suppressed column: %w", err)
+		}
+	}
+
 	// Add music-specific columns to media_files if they don't exist (idempotent)
 	musicCols := []struct {
 		name    string

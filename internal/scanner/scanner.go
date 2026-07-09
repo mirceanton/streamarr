@@ -277,6 +277,11 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 
 	needsAttention, attentionReasons := ComputeAttentionReasons(audioTracks, subtitleTracks, extSubs, effectiveLangs, effectiveSubtitleFormat)
 
+	// Keep the computed reasons for display, but don't flag suppressed files.
+	if suppressed, _ := db.IsWarningsSuppressed(path); suppressed {
+		needsAttention = false
+	}
+
 	mf := &models.MediaFile{
 		LibraryRootID:    root.ID,
 		Path:             path,
@@ -367,6 +372,11 @@ func scanMusicFile(root *models.LibraryRoot, path string) error {
 	minBitrate, _ := db.GetPreferredMinBitrate()
 
 	needsAttention, attentionReasons := ComputeMusicAttentionReasons(meta.Codec, meta.Bitrate, effectiveAudioFormat, minBitrate)
+
+	// Keep the computed reasons for display, but don't flag suppressed files.
+	if suppressed, _ := db.IsWarningsSuppressed(path); suppressed {
+		needsAttention = false
+	}
 
 	mf := &models.MediaFile{
 		LibraryRootID:    root.ID,

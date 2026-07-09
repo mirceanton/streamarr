@@ -29,6 +29,8 @@
     <div class="d-flex align-items-center gap-2">
         {{if .NeedsAttention}}
         <span class="badge badge-attention">Needs Attention</span>
+        {{else if and .WarningsSuppressed .AttentionReasons}}
+        <span class="badge bg-secondary" title="This file has warnings, but they are suppressed"><i class="bi bi-bell-slash me-1"></i>Warnings Suppressed</span>
         {{end}}
         <button class="btn btn-outline-sa btn-sm" hx-post="/api/media/{{.ID}}/rescan" hx-swap="none"
             title="Re-probe file streams and update database">
@@ -43,9 +45,26 @@
 </div>
 
 {{if .NeedsAttention}}
-<div class="alert mb-4" style="background-color:rgba(210,153,34,0.12);border:1px solid var(--sa-warning);color:var(--sa-text-primary);" role="alert">
-    <i class="bi bi-exclamation-triangle-fill me-2" style="color:var(--sa-warning);"></i>
-    <strong>Needs Attention:</strong> {{.AttentionReasons}}
+<div class="alert mb-4 d-flex justify-content-between align-items-start gap-3" style="background-color:rgba(210,153,34,0.12);border:1px solid var(--sa-warning);color:var(--sa-text-primary);" role="alert">
+    <div>
+        <i class="bi bi-exclamation-triangle-fill me-2" style="color:var(--sa-warning);"></i>
+        <strong>Needs Attention:</strong> {{.AttentionReasons}}
+    </div>
+    <button class="btn btn-outline-secondary btn-sm flex-shrink-0" hx-post="/api/media/{{.ID}}/suppress-warnings" hx-swap="none"
+        title="Hide these warnings for this file only. It will no longer be flagged as needing attention.">
+        <i class="bi bi-bell-slash me-1"></i>Suppress
+    </button>
+</div>
+{{else if and .WarningsSuppressed .AttentionReasons}}
+<div class="alert mb-4 d-flex justify-content-between align-items-start gap-3" style="background-color:var(--sa-bg-secondary);border:1px solid var(--sa-border);color:var(--sa-text-muted);" role="alert">
+    <div>
+        <i class="bi bi-bell-slash me-2"></i>
+        <strong>Warnings suppressed:</strong> {{.AttentionReasons}}
+    </div>
+    <button class="btn btn-outline-secondary btn-sm flex-shrink-0" hx-delete="/api/media/{{.ID}}/suppress-warnings" hx-swap="none"
+        title="Show warnings for this file again">
+        <i class="bi bi-bell me-1"></i>Unsuppress
+    </button>
 </div>
 {{end}}
 
