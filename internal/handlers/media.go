@@ -98,6 +98,36 @@ func DeleteMediaFileHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func SuppressWarningsHandler(w http.ResponseWriter, r *http.Request) {
+	setWarningsSuppressed(w, r, true)
+}
+
+func UnsuppressWarningsHandler(w http.ResponseWriter, r *http.Request) {
+	setWarningsSuppressed(w, r, false)
+}
+
+func setWarningsSuppressed(w http.ResponseWriter, r *http.Request, suppressed bool) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := db.GetMediaFile(id); err != nil {
+		http.Error(w, "Media file not found", http.StatusNotFound)
+		return
+	}
+
+	if err := db.SetWarningsSuppressed(id, suppressed); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Refresh", "true")
+	w.WriteHeader(http.StatusOK)
+}
+
 func RescanFileHandler(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 	id, err := strconv.ParseInt(idStr, 10, 64)

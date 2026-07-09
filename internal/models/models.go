@@ -27,6 +27,9 @@ type MediaFile struct {
 	ScannedAt        time.Time
 	NeedsAttention   bool
 	AttentionReasons string
+	// WarningsSuppressed hides attention warnings for this file: reasons are still
+	// computed and stored, but needs_attention is forced off in counts and filters.
+	WarningsSuppressed bool
 
 	// Music-specific fields (only populated for music library type)
 	Bitrate    int64  // bits per second

@@ -233,7 +233,7 @@ func processJob(jobID int64) {
 		// Update file info
 		info, _ := os.Stat(mf.Path)
 		if info != nil {
-			db.DB.Exec(`UPDATE media_files SET size_bytes = ?, scanned_at = ?, needs_attention = ?, attention_reasons = ? WHERE id = ?`,
+			db.DB.Exec(`UPDATE media_files SET size_bytes = ?, scanned_at = ?, needs_attention = (CASE WHEN warnings_suppressed = 1 THEN 0 ELSE ? END), attention_reasons = ? WHERE id = ?`,
 				info.Size(), time.Now(), needsAttention, attentionReasons, mf.ID)
 		}
 	}
@@ -450,7 +450,7 @@ func convertAudio(mf *models.MediaFile, op models.Operation, jobID int64) error 
 	needsAttention, attentionReasons := scanner.ComputeMusicAttentionReasons(meta.Codec, meta.Bitrate, effectiveAudioFormat, minBitrate)
 
 	db.UpdateMusicFilePath(mf.ID, finalPath, newFilename, newExt, meta.Codec, meta.Bitrate, meta.SampleRate, meta.BitDepth)
-	db.DB.Exec(`UPDATE media_files SET size_bytes = ?, scanned_at = ?, needs_attention = ?, attention_reasons = ? WHERE id = ?`,
+	db.DB.Exec(`UPDATE media_files SET size_bytes = ?, scanned_at = ?, needs_attention = (CASE WHEN warnings_suppressed = 1 THEN 0 ELSE ? END), attention_reasons = ? WHERE id = ?`,
 		newSize, time.Now(), needsAttention, attentionReasons, mf.ID)
 
 	return nil

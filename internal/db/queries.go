@@ -205,7 +205,7 @@ func GetMediaFileScanTimes(libraryRootID int64) (map[string]time.Time, error) {
 
 func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]models.MediaFile, error) {
 	query := `SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
-		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons,
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons, mf.warnings_suppressed,
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM audio_tracks WHERE media_file_id = mf.id), '') as audio_langs,
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM subtitle_tracks WHERE media_file_id = mf.id), '') as sub_langs,
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM external_subtitle_files WHERE media_file_id = mf.id), '') as ext_sub_langs,
@@ -231,7 +231,7 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 		var f models.MediaFile
 		var audioLangs, subLangs, extSubLangs string
 		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
-			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons, &f.WarningsSuppressed,
 			&audioLangs, &subLangs, &extSubLangs, &f.LibraryType, &f.ActiveJobStatus, &f.SubtitleFormatOverride); err != nil {
 			return nil, err
 		}
@@ -257,7 +257,7 @@ func GetMediaFilesByLibraryType(libType string, needsAttentionOnly bool) ([]mode
 
 func GetSeriesEpisodesForTable(title string, needsAttentionOnly bool) ([]models.MediaFile, error) {
 	query := `SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
-		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons,
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons, mf.warnings_suppressed,
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM audio_tracks WHERE media_file_id = mf.id), '') as audio_langs,
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM subtitle_tracks WHERE media_file_id = mf.id), '') as sub_langs,
 		COALESCE((SELECT GROUP_CONCAT(language, ',') FROM external_subtitle_files WHERE media_file_id = mf.id), '') as ext_sub_langs,
@@ -283,7 +283,7 @@ func GetSeriesEpisodesForTable(title string, needsAttentionOnly bool) ([]models.
 		var f models.MediaFile
 		var audioLangs, subLangs, extSubLangs string
 		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
-			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons, &f.WarningsSuppressed,
 			&audioLangs, &subLangs, &extSubLangs, &f.LibraryType, &f.ActiveJobStatus, &f.SubtitleFormatOverride); err != nil {
 			return nil, err
 		}
@@ -310,13 +310,13 @@ func GetSeriesEpisodesForTable(title string, needsAttentionOnly bool) ([]models.
 func GetMediaFile(id int64) (*models.MediaFile, error) {
 	var f models.MediaFile
 	err := DB.QueryRow(`SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
-		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons, lr.type,
+		mf.season, mf.episode, mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons, mf.warnings_suppressed, lr.type,
 		COALESCE(mf.bitrate, 0), COALESCE(mf.sample_rate, 0), COALESCE(mf.bit_depth, 0),
 		COALESCE(mf.audio_codec, ''), COALESCE(mf.artist, ''), COALESCE(mf.album, ''), COALESCE(mf.track_num, 0)
 		FROM media_files mf JOIN library_roots lr ON mf.library_root_id = lr.id
 		WHERE mf.id = ?`, id).
 		Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
-			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons, &f.LibraryType,
+			&f.Season, &f.Episode, &f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons, &f.WarningsSuppressed, &f.LibraryType,
 			&f.Bitrate, &f.SampleRate, &f.BitDepth, &f.AudioCodec, &f.Artist, &f.Album, &f.TrackNum)
 	if err != nil {
 		return nil, err
@@ -419,6 +419,28 @@ func UpsertMediaFile(f *models.MediaFile) (int64, error) {
 		return 0, err
 	}
 	return existing.ID, nil
+}
+
+// SetWarningsSuppressed toggles per-file warning suppression. Suppressing clears
+// needs_attention immediately; unsuppressing restores it from the stored reasons.
+func SetWarningsSuppressed(id int64, suppressed bool) error {
+	if suppressed {
+		_, err := DB.Exec(`UPDATE media_files SET warnings_suppressed = 1, needs_attention = 0 WHERE id = ?`, id)
+		return err
+	}
+	_, err := DB.Exec(`UPDATE media_files SET warnings_suppressed = 0, needs_attention = CASE WHEN attention_reasons != '' THEN 1 ELSE 0 END WHERE id = ?`, id)
+	return err
+}
+
+// IsWarningsSuppressed reports whether warnings are suppressed for the file at path.
+// Files not yet in the database are not suppressed.
+func IsWarningsSuppressed(path string) (bool, error) {
+	var suppressed bool
+	err := DB.QueryRow(`SELECT warnings_suppressed FROM media_files WHERE path = ?`, path).Scan(&suppressed)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return suppressed, err
 }
 
 func DeleteTracksForFile(fileID int64) error {
@@ -980,7 +1002,7 @@ func GetAlbums(rootID int64) ([]models.Album, error) {
 func GetTracksByAlbum(artist, albumTitle string, rootID int64) ([]models.MediaFile, error) {
 	rows, err := DB.Query(`
 		SELECT mf.id, mf.library_root_id, mf.path, mf.filename, mf.title, mf.year,
-			mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons,
+			mf.size_bytes, mf.container, mf.scanned_at, mf.needs_attention, mf.attention_reasons, mf.warnings_suppressed,
 			COALESCE(mf.bitrate, 0), COALESCE(mf.sample_rate, 0), COALESCE(mf.bit_depth, 0),
 			COALESCE(mf.audio_codec, ''), COALESCE(mf.artist, ''), COALESCE(mf.album, ''), COALESCE(mf.track_num, 0),
 			COALESCE((SELECT status FROM jobs WHERE media_file_id = mf.id AND status IN ('pending', 'running') LIMIT 1), '') as active_job_status
@@ -997,7 +1019,7 @@ func GetTracksByAlbum(artist, albumTitle string, rootID int64) ([]models.MediaFi
 		var f models.MediaFile
 		f.LibraryType = "music"
 		if err := rows.Scan(&f.ID, &f.LibraryRootID, &f.Path, &f.Filename, &f.Title, &f.Year,
-			&f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons,
+			&f.SizeBytes, &f.Container, &f.ScannedAt, &f.NeedsAttention, &f.AttentionReasons, &f.WarningsSuppressed,
 			&f.Bitrate, &f.SampleRate, &f.BitDepth, &f.AudioCodec, &f.Artist, &f.Album, &f.TrackNum,
 			&f.ActiveJobStatus); err != nil {
 			return nil, err
