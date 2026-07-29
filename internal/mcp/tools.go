@@ -212,8 +212,8 @@ type RunFFprobeInput struct {
 
 // RunFFprobeOutput is the output of the run_ffprobe tool.
 type RunFFprobeOutput struct {
-	Path   string          `json:"path"`
-	Result json.RawMessage `json:"result" jsonschema:"Raw ffprobe JSON output (streams and format) for the file."`
+	Path   string         `json:"path"`
+	Result map[string]any `json:"result" jsonschema:"Raw ffprobe JSON output (streams and format) for the file."`
 }
 
 func runFFprobe(_ context.Context, _ *mcpsdk.CallToolRequest, in RunFFprobeInput) (*mcpsdk.CallToolResult, RunFFprobeOutput, error) {
@@ -227,7 +227,12 @@ func runFFprobe(_ context.Context, _ *mcpsdk.CallToolRequest, in RunFFprobeInput
 		return nil, RunFFprobeOutput{}, err
 	}
 
-	return nil, RunFFprobeOutput{Path: mf.Path, Result: raw}, nil
+	var result map[string]any
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, RunFFprobeOutput{}, fmt.Errorf("parse ffprobe output for %s: %w", mf.Path, err)
+	}
+
+	return nil, RunFFprobeOutput{Path: mf.Path, Result: result}, nil
 }
 
 func splitReasons(s string) []string {
