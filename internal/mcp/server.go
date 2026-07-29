@@ -28,5 +28,10 @@ func NewHTTPHandler() http.Handler {
 		Description: "Trigger a background job that removes audio/subtitle tracks or extracts subtitle tracks from a media file, in order to clear its needs-attention status.",
 	}, triggerTrackJob)
 
+	mcpsdk.AddTool(server, &mcpsdk.Tool{
+		Name:        "run_ffprobe",
+		Description: "Run ffprobe on a media file and return its raw JSON output (streams and format), for detailed inspection beyond the summarized attention reasons.",
+	}, runFFprobe)
+
 	return mcpsdk.NewStreamableHTTPHandler(func(*http.Request) *mcpsdk.Server { return server }, nil)
 }

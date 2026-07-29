@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -202,6 +203,31 @@ func extractSubtitlePath(mf *models.MediaFile, st *models.SubtitleTrack) string 
 	}
 	baseName := strings.TrimSuffix(mf.Filename, filepath.Ext(mf.Filename))
 	return filepath.Join(filepath.Dir(mf.Path), fmt.Sprintf("%s.%s.%s", baseName, lang, ext))
+}
+
+// RunFFprobeInput is the input for the run_ffprobe tool.
+type RunFFprobeInput struct {
+	MediaFileID int64 `json:"media_file_id" jsonschema:"ID of the media file to probe, as returned by list_attention_media."`
+}
+
+// RunFFprobeOutput is the output of the run_ffprobe tool.
+type RunFFprobeOutput struct {
+	Path   string          `json:"path"`
+	Result json.RawMessage `json:"result" jsonschema:"Raw ffprobe JSON output (streams and format) for the file."`
+}
+
+func runFFprobe(_ context.Context, _ *mcpsdk.CallToolRequest, in RunFFprobeInput) (*mcpsdk.CallToolResult, RunFFprobeOutput, error) {
+	mf, err := db.GetMediaFile(in.MediaFileID)
+	if err != nil {
+		return nil, RunFFprobeOutput{}, fmt.Errorf("media file %d not found: %w", in.MediaFileID, err)
+	}
+
+	raw, err := scanner.ProbeRaw(mf.Path)
+	if err != nil {
+		return nil, RunFFprobeOutput{}, err
+	}
+
+	return nil, RunFFprobeOutput{Path: mf.Path, Result: raw}, nil
 }
 
 func splitReasons(s string) []string {
