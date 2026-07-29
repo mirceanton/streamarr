@@ -79,19 +79,38 @@ type ffprobeFormat struct {
 	} `json:"tags"`
 }
 
-// Probe runs ffprobe on a file and returns parsed audio and subtitle tracks.
-func Probe(filepath string) ([]models.AudioTrack, []models.SubtitleTrack, error) {
+// runFFprobe runs ffprobe on a file with -show_streams -show_format and
+// returns the raw JSON output.
+func runFFprobe(filePath string) ([]byte, error) {
 	cmd := exec.Command("ffprobe",
 		"-v", "quiet",
 		"-print_format", "json",
 		"-show_streams",
 		"-show_format",
-		filepath,
+		filePath,
 	)
 
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, nil, fmt.Errorf("ffprobe failed for %s: %w", filepath, err)
+		return nil, fmt.Errorf("ffprobe failed for %s: %w", filePath, err)
+	}
+	return output, nil
+}
+
+// ProbeRaw runs ffprobe on a file and returns the raw JSON output (streams and format).
+func ProbeRaw(filePath string) (json.RawMessage, error) {
+	output, err := runFFprobe(filePath)
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(output), nil
+}
+
+// Probe runs ffprobe on a file and returns parsed audio and subtitle tracks.
+func Probe(filepath string) ([]models.AudioTrack, []models.SubtitleTrack, error) {
+	output, err := runFFprobe(filepath)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var result ffprobeOutput
@@ -208,17 +227,9 @@ type MusicProbeResult struct {
 
 // ProbeMusic runs ffprobe on a music file and returns its audio metadata.
 func ProbeMusic(filePath string) (*MusicProbeResult, error) {
-	cmd := exec.Command("ffprobe",
-		"-v", "quiet",
-		"-print_format", "json",
-		"-show_streams",
-		"-show_format",
-		filePath,
-	)
-
-	output, err := cmd.Output()
+	output, err := runFFprobe(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("ffprobe failed for %s: %w", filePath, err)
+		return nil, err
 	}
 
 	var result ffprobeOutput
