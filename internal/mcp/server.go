@@ -20,12 +20,12 @@ func NewHTTPHandler() http.Handler {
 
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
 		Name:        "get_media_attention_reasons",
-		Description: "Get the specific reasons a single media file needs attention.",
+		Description: "Get the specific reasons a single media file needs attention, including any external subtitle sidecar files (e.g. .srt files next to the media file) found on disk.",
 	}, getAttentionReasons)
 
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
 		Name:        "trigger_track_job",
-		Description: "Trigger a background job that removes audio/subtitle tracks or extracts subtitle tracks from a media file, in order to clear its needs-attention status.",
+		Description: "Trigger a background job that removes audio/subtitle tracks, extracts subtitle tracks, or deletes external subtitle sidecar files from a media file, in order to clear its needs-attention status.",
 	}, triggerTrackJob)
 
 	mcpsdk.AddTool(server, &mcpsdk.Tool{

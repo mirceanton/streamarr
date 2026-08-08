@@ -75,12 +75,23 @@ type GetAttentionReasonsInput struct {
 	MediaFileID int64 `json:"media_file_id" jsonschema:"ID of the media file to inspect, as returned by list_attention_media."`
 }
 
+// ExternalSubtitleInfo describes a subtitle sidecar file found on disk alongside a media file.
+type ExternalSubtitleInfo struct {
+	Path     string `json:"path" jsonschema:"Full path to the sidecar subtitle file. Pass this as source_path to a delete_external_subtitle operation in trigger_track_job."`
+	Filename string `json:"filename"`
+	Language string `json:"language"`
+	Format   string `json:"format" jsonschema:"Subtitle format, e.g. srt, ass, ssa, vtt, sub."`
+	Forced   bool   `json:"forced"`
+	SDH      bool   `json:"sdh"`
+}
+
 // GetAttentionReasonsOutput is the output of the get_media_attention_reasons tool.
 type GetAttentionReasonsOutput struct {
-	Title            string   `json:"title"`
-	Path             string   `json:"path"`
-	NeedsAttention   bool     `json:"needs_attention"`
-	AttentionReasons []string `json:"attention_reasons"`
+	Title                 string                 `json:"title"`
+	Path                  string                 `json:"path"`
+	NeedsAttention        bool                   `json:"needs_attention"`
+	AttentionReasons      []string               `json:"attention_reasons"`
+	ExternalSubtitleFiles []ExternalSubtitleInfo `json:"external_subtitle_files" jsonschema:"Subtitle sidecar files on disk next to this media file (not embedded in the container). Not covered by remove_subtitle/extract_subtitle — use delete_external_subtitle instead."`
 }
 
 func getAttentionReasons(_ context.Context, _ *mcpsdk.CallToolRequest, in GetAttentionReasonsInput) (*mcpsdk.CallToolResult, GetAttentionReasonsOutput, error) {
@@ -88,24 +99,38 @@ func getAttentionReasons(_ context.Context, _ *mcpsdk.CallToolRequest, in GetAtt
 	if err != nil {
 		return nil, GetAttentionReasonsOutput{}, fmt.Errorf("media file %d not found: %w", in.MediaFileID, err)
 	}
+	extSubs := make([]ExternalSubtitleInfo, len(mf.ExternalSubtitleFiles))
+	for i, es := range mf.ExternalSubtitleFiles {
+		extSubs[i] = ExternalSubtitleInfo{
+			Path:     es.Path,
+			Filename: es.Filename,
+			Language: es.Language,
+			Format:   es.Format,
+			Forced:   es.Forced,
+			SDH:      es.SDH,
+		}
+	}
 	return nil, GetAttentionReasonsOutput{
-		Title:            mf.Title,
-		Path:             mf.Path,
-		NeedsAttention:   mf.NeedsAttention,
-		AttentionReasons: splitReasons(mf.AttentionReasons),
+		Title:                 mf.Title,
+		Path:                  mf.Path,
+		NeedsAttention:        mf.NeedsAttention,
+		AttentionReasons:      splitReasons(mf.AttentionReasons),
+		ExternalSubtitleFiles: extSubs,
 	}, nil
 }
 
 var allowedTrackOps = map[string]bool{
-	"remove_audio":     true,
-	"remove_subtitle":  true,
-	"extract_subtitle": true,
+	"remove_audio":             true,
+	"remove_subtitle":          true,
+	"extract_subtitle":         true,
+	"delete_external_subtitle": true,
 }
 
 // TrackOperation describes a single track action within a trigger_track_job call.
 type TrackOperation struct {
-	Type        string `json:"type" jsonschema:"One of: remove_audio, remove_subtitle, extract_subtitle."`
-	StreamIndex int    `json:"stream_index" jsonschema:"ffmpeg stream index of the audio or subtitle track to act on."`
+	Type        string `json:"type" jsonschema:"One of: remove_audio, remove_subtitle, extract_subtitle, delete_external_subtitle."`
+	StreamIndex int    `json:"stream_index,omitempty" jsonschema:"ffmpeg stream index of the audio or subtitle track to act on. Required for remove_audio, remove_subtitle, extract_subtitle."`
+	SourcePath  string `json:"source_path,omitempty" jsonschema:"Path of the external subtitle sidecar file to delete, as returned by get_media_attention_reasons. Required for delete_external_subtitle."`
 }
 
 // TriggerTrackJobInput is the input for the trigger_track_job tool.
@@ -142,7 +167,7 @@ func triggerTrackJob(_ context.Context, _ *mcpsdk.CallToolRequest, in TriggerTra
 	ops := make([]models.Operation, len(in.Operations))
 	for i, op := range in.Operations {
 		if !allowedTrackOps[op.Type] {
-			return nil, TriggerTrackJobOutput{}, fmt.Errorf("invalid operation type %q: must be one of remove_audio, remove_subtitle, extract_subtitle", op.Type)
+			return nil, TriggerTrackJobOutput{}, fmt.Errorf("invalid operation type %q: must be one of remove_audio, remove_subtitle, extract_subtitle, delete_external_subtitle", op.Type)
 		}
 
 		ops[i] = models.Operation{Type: op.Type, StreamIndex: op.StreamIndex}
@@ -161,6 +186,14 @@ func triggerTrackJob(_ context.Context, _ *mcpsdk.CallToolRequest, in TriggerTra
 			if op.Type == "extract_subtitle" {
 				ops[i].OutputPath = extractSubtitlePath(mf, st)
 			}
+		case "delete_external_subtitle":
+			if op.SourcePath == "" {
+				return nil, TriggerTrackJobOutput{}, fmt.Errorf("source_path is required for delete_external_subtitle")
+			}
+			if !hasExternalSubtitle(mf.ExternalSubtitleFiles, op.SourcePath) {
+				return nil, TriggerTrackJobOutput{}, fmt.Errorf("no external subtitle file at path %q on media file %d", op.SourcePath, in.MediaFileID)
+			}
+			ops[i].SourcePath = op.SourcePath
 		}
 	}
 
@@ -193,6 +226,15 @@ func findSubtitleTrack(tracks []models.SubtitleTrack, idx int) *models.SubtitleT
 		}
 	}
 	return nil
+}
+
+func hasExternalSubtitle(files []models.ExternalSubtitleFile, path string) bool {
+	for _, f := range files {
+		if f.Path == path {
+			return true
+		}
+	}
+	return false
 }
 
 func extractSubtitlePath(mf *models.MediaFile, st *models.SubtitleTrack) string {
