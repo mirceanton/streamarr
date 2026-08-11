@@ -953,6 +953,42 @@ func DeleteAudioFormatOverride(libraryRootID int64, itemKey, itemType string) er
 	return err
 }
 
+// --- Minimum Bitrate Overrides (music) ---
+
+// GetMinBitrateOverride returns the minimum bitrate override (in kbps) for an artist or
+// album, and whether an override is set at all. A found override of 0 means "no minimum
+// bitrate required", which is distinct from no override being set (falls back to the
+// global preferred_min_bitrate setting).
+func GetMinBitrateOverride(libraryRootID int64, itemKey, itemType string) (minBitrate int, found bool, err error) {
+	var val sql.NullInt64
+	err = DB.QueryRow(`SELECT min_bitrate FROM audio_format_overrides WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
+		libraryRootID, itemKey, itemType).Scan(&val)
+	if err == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, err
+	}
+	if !val.Valid {
+		return 0, false, nil
+	}
+	return int(val.Int64), true, nil
+}
+
+func SetMinBitrateOverride(libraryRootID int64, itemKey, itemType string, minBitrate int) error {
+	_, err := DB.Exec(`INSERT INTO audio_format_overrides (library_root_id, item_key, item_type, preferred_audio_format, min_bitrate)
+		VALUES (?, ?, ?, '', ?)
+		ON CONFLICT(library_root_id, item_key, item_type) DO UPDATE SET min_bitrate = excluded.min_bitrate`,
+		libraryRootID, itemKey, itemType, minBitrate)
+	return err
+}
+
+func DeleteMinBitrateOverride(libraryRootID int64, itemKey, itemType string) error {
+	_, err := DB.Exec(`UPDATE audio_format_overrides SET min_bitrate = NULL WHERE library_root_id = ? AND item_key = ? AND item_type = ?`,
+		libraryRootID, itemKey, itemType)
+	return err
+}
+
 // --- Music Album Queries ---
 
 // GetAlbums returns a list of albums from a music library root, grouped by artist+album.

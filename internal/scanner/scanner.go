@@ -264,6 +264,13 @@ func scanFile(root *models.LibraryRoot, path string, preferredLangs []string) er
 		if override, _ := db.GetSubtitleFormatOverride(root.ID, seriesKey, "series"); override != "" {
 			effectiveSubtitleFormat = override
 		}
+		// Per-episode overrides take precedence over the series-wide override.
+		if override, _ := db.GetLanguageOverride(root.ID, path, "episode"); len(override) > 0 {
+			effectiveLangs = override
+		}
+		if override, _ := db.GetSubtitleFormatOverride(root.ID, path, "episode"); override != "" {
+			effectiveSubtitleFormat = override
+		}
 	}
 
 	// Probe streams
@@ -370,6 +377,9 @@ func scanMusicFile(root *models.LibraryRoot, path string) error {
 	}
 
 	minBitrate, _ := db.GetPreferredMinBitrate()
+	if override, found, _ := db.GetMinBitrateOverride(root.ID, albumKey, "album"); found {
+		minBitrate = override
+	}
 
 	needsAttention, attentionReasons := ComputeMusicAttentionReasons(meta.Codec, meta.Bitrate, effectiveAudioFormat, minBitrate)
 
