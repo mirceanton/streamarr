@@ -283,3 +283,301 @@ func splitReasons(s string) []string {
 	}
 	return strings.Split(s, "\n")
 }
+
+var (
+	validSubtitleFormats = map[string]bool{"srt": true, "ass": true, "vtt": true, "pgs": true, "dvd": true}
+	validAudioFormats    = map[string]bool{"flac": true, "mp3": true, "aac": true, "opus": true}
+)
+
+// resolveTextOverrideScope resolves the (item_type, item_key) pair used by the
+// language_overrides and subtitle_format_overrides tables for a given media file
+// and requested scope. Movies are always scoped to the file itself. Shows default
+// to the episode itself ("episode" scope) but can also be scoped to the whole
+// series ("series" scope), matching the series-wide overrides already available
+// in the web UI.
+func resolveTextOverrideScope(mf *models.MediaFile, scope string) (itemType, itemKey string, err error) {
+	switch mf.LibraryType {
+	case "movies":
+		return "movie", mf.Path, nil
+	case "shows":
+		if scope == "" {
+			scope = "episode"
+		}
+		switch scope {
+		case "episode":
+			return "episode", mf.Path, nil
+		case "series":
+			key := mf.Title
+			if key == "" {
+				key = "Unknown Series"
+			}
+			return "series", key, nil
+		default:
+			return "", "", fmt.Errorf("invalid scope %q: must be episode or series", scope)
+		}
+	default:
+		return "", "", fmt.Errorf("media file %d is a %s file; language and subtitle format preferences only apply to movies and shows", mf.ID, mf.LibraryType)
+	}
+}
+
+// rescanAndReport rescans a media file (recomputing needs_attention with any
+// overrides just applied) and returns its refreshed attention state.
+func rescanAndReport(mf *models.MediaFile) (bool, []string, error) {
+	if err := scanner.RescanFile(mf); err != nil {
+		return false, nil, fmt.Errorf("rescan media file %d: %w", mf.ID, err)
+	}
+	updated, err := db.GetMediaFile(mf.ID)
+	if err != nil {
+		return false, nil, fmt.Errorf("reload media file %d: %w", mf.ID, err)
+	}
+	return updated.NeedsAttention, splitReasons(updated.AttentionReasons), nil
+}
+
+// PreferenceUpdateOutput is the shared output shape for tools that set or clear a
+// per-item preference and then re-evaluate whether the file still needs attention.
+type PreferenceUpdateOutput struct {
+	MediaFileID      int64    `json:"media_file_id"`
+	Scope            string   `json:"scope" jsonschema:"The scope the preference was applied to: movie, episode, or series."`
+	AppliedTo        string   `json:"applied_to" jsonschema:"The key identifying what the preference applies to: a file path (movie/episode) or a title (series/album)."`
+	NeedsAttention   bool     `json:"needs_attention" jsonschema:"Whether the file still needs attention after this change, recomputed immediately."`
+	AttentionReasons []string `json:"attention_reasons"`
+}
+
+// SetLanguagePreferenceInput is the input for the set_language_preference tool.
+type SetLanguagePreferenceInput struct {
+	MediaFileID int64    `json:"media_file_id" jsonschema:"ID of the media file, as returned by list_attention_media."`
+	Languages   []string `json:"languages" jsonschema:"Preferred audio/subtitle language codes (e.g. eng, fra). Files matching one of these languages will no longer be flagged for language reasons."`
+	Scope       string   `json:"scope,omitempty" jsonschema:"Shows only: episode (default) to set this just for this episode, or series to set it for the whole series. Ignored for movies, which are always scoped to the file itself."`
+}
+
+func setLanguagePreference(_ context.Context, _ *mcpsdk.CallToolRequest, in SetLanguagePreferenceInput) (*mcpsdk.CallToolResult, PreferenceUpdateOutput, error) {
+	if len(in.Languages) == 0 {
+		return nil, PreferenceUpdateOutput{}, fmt.Errorf("at least one language is required")
+	}
+
+	mf, err := db.GetMediaFile(in.MediaFileID)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, fmt.Errorf("media file %d not found: %w", in.MediaFileID, err)
+	}
+
+	itemType, itemKey, err := resolveTextOverrideScope(mf, in.Scope)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+
+	langs := make([]string, len(in.Languages))
+	for i, l := range in.Languages {
+		langs[i] = strings.ToLower(strings.TrimSpace(l))
+	}
+
+	if err := db.SetLanguageOverride(mf.LibraryRootID, itemKey, itemType, langs); err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+
+	needsAttention, reasons, err := rescanAndReport(mf)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+	return nil, PreferenceUpdateOutput{
+		MediaFileID: in.MediaFileID, Scope: itemType, AppliedTo: itemKey,
+		NeedsAttention: needsAttention, AttentionReasons: reasons,
+	}, nil
+}
+
+// ClearLanguagePreferenceInput is the input for the clear_language_preference tool.
+type ClearLanguagePreferenceInput struct {
+	MediaFileID int64  `json:"media_file_id" jsonschema:"ID of the media file, as returned by list_attention_media."`
+	Scope       string `json:"scope,omitempty" jsonschema:"Shows only: episode (default) or series, matching whichever scope the preference was set at. Ignored for movies."`
+}
+
+func clearLanguagePreference(_ context.Context, _ *mcpsdk.CallToolRequest, in ClearLanguagePreferenceInput) (*mcpsdk.CallToolResult, PreferenceUpdateOutput, error) {
+	mf, err := db.GetMediaFile(in.MediaFileID)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, fmt.Errorf("media file %d not found: %w", in.MediaFileID, err)
+	}
+
+	itemType, itemKey, err := resolveTextOverrideScope(mf, in.Scope)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+
+	if err := db.DeleteLanguageOverride(mf.LibraryRootID, itemKey, itemType); err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+
+	needsAttention, reasons, err := rescanAndReport(mf)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+	return nil, PreferenceUpdateOutput{
+		MediaFileID: in.MediaFileID, Scope: itemType, AppliedTo: itemKey,
+		NeedsAttention: needsAttention, AttentionReasons: reasons,
+	}, nil
+}
+
+// SetSubtitleFormatPreferenceInput is the input for the set_subtitle_format_preference tool.
+type SetSubtitleFormatPreferenceInput struct {
+	MediaFileID int64  `json:"media_file_id" jsonschema:"ID of the media file, as returned by list_attention_media."`
+	Format      string `json:"format" jsonschema:"Preferred subtitle format: srt, ass, vtt, pgs, or dvd."`
+	Scope       string `json:"scope,omitempty" jsonschema:"Shows only: episode (default) to set this just for this episode, or series to set it for the whole series. Ignored for movies, which are always scoped to the file itself."`
+}
+
+func setSubtitleFormatPreference(_ context.Context, _ *mcpsdk.CallToolRequest, in SetSubtitleFormatPreferenceInput) (*mcpsdk.CallToolResult, PreferenceUpdateOutput, error) {
+	format := strings.ToLower(strings.TrimSpace(in.Format))
+	if !validSubtitleFormats[format] {
+		return nil, PreferenceUpdateOutput{}, fmt.Errorf("invalid format %q: must be one of srt, ass, vtt, pgs, dvd", in.Format)
+	}
+
+	mf, err := db.GetMediaFile(in.MediaFileID)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, fmt.Errorf("media file %d not found: %w", in.MediaFileID, err)
+	}
+
+	itemType, itemKey, err := resolveTextOverrideScope(mf, in.Scope)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+
+	if err := db.SetSubtitleFormatOverride(mf.LibraryRootID, itemKey, itemType, format); err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+
+	needsAttention, reasons, err := rescanAndReport(mf)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+	return nil, PreferenceUpdateOutput{
+		MediaFileID: in.MediaFileID, Scope: itemType, AppliedTo: itemKey,
+		NeedsAttention: needsAttention, AttentionReasons: reasons,
+	}, nil
+}
+
+// ClearSubtitleFormatPreferenceInput is the input for the clear_subtitle_format_preference tool.
+type ClearSubtitleFormatPreferenceInput struct {
+	MediaFileID int64  `json:"media_file_id" jsonschema:"ID of the media file, as returned by list_attention_media."`
+	Scope       string `json:"scope,omitempty" jsonschema:"Shows only: episode (default) or series, matching whichever scope the preference was set at. Ignored for movies."`
+}
+
+func clearSubtitleFormatPreference(_ context.Context, _ *mcpsdk.CallToolRequest, in ClearSubtitleFormatPreferenceInput) (*mcpsdk.CallToolResult, PreferenceUpdateOutput, error) {
+	mf, err := db.GetMediaFile(in.MediaFileID)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, fmt.Errorf("media file %d not found: %w", in.MediaFileID, err)
+	}
+
+	itemType, itemKey, err := resolveTextOverrideScope(mf, in.Scope)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+
+	if err := db.DeleteSubtitleFormatOverride(mf.LibraryRootID, itemKey, itemType); err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+
+	needsAttention, reasons, err := rescanAndReport(mf)
+	if err != nil {
+		return nil, PreferenceUpdateOutput{}, err
+	}
+	return nil, PreferenceUpdateOutput{
+		MediaFileID: in.MediaFileID, Scope: itemType, AppliedTo: itemKey,
+		NeedsAttention: needsAttention, AttentionReasons: reasons,
+	}, nil
+}
+
+// SetAudioPreferenceInput is the input for the set_audio_preference tool.
+type SetAudioPreferenceInput struct {
+	MediaFileID    int64  `json:"media_file_id" jsonschema:"ID of the music track, as returned by list_attention_media."`
+	Format         string `json:"format,omitempty" jsonschema:"Preferred audio format for this track's album: flac, mp3, aac, or opus. Omit to leave the format preference unchanged."`
+	MinBitrateKbps *int   `json:"min_bitrate_kbps,omitempty" jsonschema:"Minimum acceptable bitrate in kbps for this track's album. 0 means no minimum is required. Omit to leave the bitrate preference unchanged."`
+}
+
+// AudioPreferenceUpdateOutput is the output of the set_audio_preference and clear_audio_preference tools.
+type AudioPreferenceUpdateOutput struct {
+	MediaFileID      int64    `json:"media_file_id"`
+	AlbumKey         string   `json:"album_key" jsonschema:"The artist/album this preference was applied to. Audio preferences are scoped per album, not per track."`
+	NeedsAttention   bool     `json:"needs_attention"`
+	AttentionReasons []string `json:"attention_reasons"`
+}
+
+func setAudioPreference(_ context.Context, _ *mcpsdk.CallToolRequest, in SetAudioPreferenceInput) (*mcpsdk.CallToolResult, AudioPreferenceUpdateOutput, error) {
+	format := strings.ToLower(strings.TrimSpace(in.Format))
+	if format != "" && !validAudioFormats[format] {
+		return nil, AudioPreferenceUpdateOutput{}, fmt.Errorf("invalid format %q: must be one of flac, mp3, aac, opus", in.Format)
+	}
+	if format == "" && in.MinBitrateKbps == nil {
+		return nil, AudioPreferenceUpdateOutput{}, fmt.Errorf("at least one of format or min_bitrate_kbps is required")
+	}
+	if in.MinBitrateKbps != nil && *in.MinBitrateKbps < 0 {
+		return nil, AudioPreferenceUpdateOutput{}, fmt.Errorf("min_bitrate_kbps must be >= 0")
+	}
+
+	mf, err := db.GetMediaFile(in.MediaFileID)
+	if err != nil {
+		return nil, AudioPreferenceUpdateOutput{}, fmt.Errorf("media file %d not found: %w", in.MediaFileID, err)
+	}
+	if mf.LibraryType != "music" {
+		return nil, AudioPreferenceUpdateOutput{}, fmt.Errorf("media file %d is a %s file; audio format/bitrate preferences only apply to music", in.MediaFileID, mf.LibraryType)
+	}
+
+	albumKey := mf.Artist + "/" + mf.Album
+	if format != "" {
+		if err := db.SetAudioFormatOverride(mf.LibraryRootID, albumKey, "album", format); err != nil {
+			return nil, AudioPreferenceUpdateOutput{}, err
+		}
+	}
+	if in.MinBitrateKbps != nil {
+		if err := db.SetMinBitrateOverride(mf.LibraryRootID, albumKey, "album", *in.MinBitrateKbps); err != nil {
+			return nil, AudioPreferenceUpdateOutput{}, err
+		}
+	}
+
+	needsAttention, reasons, err := rescanAndReport(mf)
+	if err != nil {
+		return nil, AudioPreferenceUpdateOutput{}, err
+	}
+	return nil, AudioPreferenceUpdateOutput{
+		MediaFileID: in.MediaFileID, AlbumKey: albumKey,
+		NeedsAttention: needsAttention, AttentionReasons: reasons,
+	}, nil
+}
+
+// ClearAudioPreferenceInput is the input for the clear_audio_preference tool.
+type ClearAudioPreferenceInput struct {
+	MediaFileID  int64 `json:"media_file_id" jsonschema:"ID of the music track, as returned by list_attention_media."`
+	ClearFormat  bool  `json:"clear_format,omitempty" jsonschema:"Clear the album's preferred audio format override, reverting to the global setting."`
+	ClearBitrate bool  `json:"clear_bitrate,omitempty" jsonschema:"Clear the album's minimum bitrate override, reverting to the global setting."`
+}
+
+func clearAudioPreference(_ context.Context, _ *mcpsdk.CallToolRequest, in ClearAudioPreferenceInput) (*mcpsdk.CallToolResult, AudioPreferenceUpdateOutput, error) {
+	if !in.ClearFormat && !in.ClearBitrate {
+		return nil, AudioPreferenceUpdateOutput{}, fmt.Errorf("at least one of clear_format or clear_bitrate must be true")
+	}
+
+	mf, err := db.GetMediaFile(in.MediaFileID)
+	if err != nil {
+		return nil, AudioPreferenceUpdateOutput{}, fmt.Errorf("media file %d not found: %w", in.MediaFileID, err)
+	}
+	if mf.LibraryType != "music" {
+		return nil, AudioPreferenceUpdateOutput{}, fmt.Errorf("media file %d is a %s file; audio format/bitrate preferences only apply to music", in.MediaFileID, mf.LibraryType)
+	}
+
+	albumKey := mf.Artist + "/" + mf.Album
+	if in.ClearFormat {
+		if err := db.SetAudioFormatOverride(mf.LibraryRootID, albumKey, "album", ""); err != nil {
+			return nil, AudioPreferenceUpdateOutput{}, err
+		}
+	}
+	if in.ClearBitrate {
+		if err := db.DeleteMinBitrateOverride(mf.LibraryRootID, albumKey, "album"); err != nil {
+			return nil, AudioPreferenceUpdateOutput{}, err
+		}
+	}
+
+	needsAttention, reasons, err := rescanAndReport(mf)
+	if err != nil {
+		return nil, AudioPreferenceUpdateOutput{}, err
+	}
+	return nil, AudioPreferenceUpdateOutput{
+		MediaFileID: in.MediaFileID, AlbumKey: albumKey,
+		NeedsAttention: needsAttention, AttentionReasons: reasons,
+	}, nil
+}

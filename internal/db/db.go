@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -104,7 +105,7 @@ func migrate() error {
 			id INTEGER PRIMARY KEY,
 			library_root_id INTEGER NOT NULL REFERENCES library_roots(id) ON DELETE CASCADE,
 			item_key TEXT NOT NULL,
-			item_type TEXT NOT NULL CHECK(item_type IN ('movie', 'series')),
+			item_type TEXT NOT NULL CHECK(item_type IN ('movie', 'series', 'episode')),
 			preferred_languages TEXT NOT NULL,
 			UNIQUE(library_root_id, item_key, item_type)
 		)`,
@@ -112,7 +113,7 @@ func migrate() error {
 			id INTEGER PRIMARY KEY,
 			library_root_id INTEGER NOT NULL REFERENCES library_roots(id) ON DELETE CASCADE,
 			item_key TEXT NOT NULL,
-			item_type TEXT NOT NULL CHECK(item_type IN ('movie', 'series')),
+			item_type TEXT NOT NULL CHECK(item_type IN ('movie', 'series', 'episode')),
 			preferred_subtitle_format TEXT NOT NULL,
 			UNIQUE(library_root_id, item_key, item_type)
 		)`,
@@ -122,6 +123,7 @@ func migrate() error {
 			item_key TEXT NOT NULL,
 			item_type TEXT NOT NULL CHECK(item_type IN ('artist', 'album')),
 			preferred_audio_format TEXT NOT NULL,
+			min_bitrate INTEGER,
 			UNIQUE(library_root_id, item_key, item_type)
 		)`,
 	}
@@ -196,7 +198,68 @@ func migrate() error {
 		}
 	}
 
+	// Add min_bitrate column to audio_format_overrides if it doesn't exist (idempotent)
+	var minBitrateColCount int
+	DB.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('audio_format_overrides') WHERE name = 'min_bitrate'`).Scan(&minBitrateColCount)
+	if minBitrateColCount == 0 {
+		if _, err := DB.Exec(`ALTER TABLE audio_format_overrides ADD COLUMN min_bitrate INTEGER`); err != nil {
+			return fmt.Errorf("add min_bitrate column: %w", err)
+		}
+	}
+
+	// Widen item_type to allow 'episode' (per-episode overrides) on existing databases.
+	if err := migrateAddEpisodeItemType("language_overrides", "preferred_languages TEXT"); err != nil {
+		return err
+	}
+	if err := migrateAddEpisodeItemType("subtitle_format_overrides", "preferred_subtitle_format TEXT"); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// migrateAddEpisodeItemType recreates an overrides table so its item_type CHECK
+// constraint also allows 'episode', preserving existing rows. It is a no-op if
+// the table already allows 'episode'.
+func migrateAddEpisodeItemType(table, valueColumnDef string) error {
+	var schemaSQL string
+	if err := DB.QueryRow(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&schemaSQL); err != nil {
+		return fmt.Errorf("inspect %s schema: %w", table, err)
+	}
+	if strings.Contains(schemaSQL, "'episode'") {
+		return nil
+	}
+
+	tx, err := DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	newTable := table + "_new"
+	createSQL := fmt.Sprintf(`CREATE TABLE %s (
+		id INTEGER PRIMARY KEY,
+		library_root_id INTEGER NOT NULL REFERENCES library_roots(id) ON DELETE CASCADE,
+		item_key TEXT NOT NULL,
+		item_type TEXT NOT NULL CHECK(item_type IN ('movie', 'series', 'episode')),
+		%s NOT NULL,
+		UNIQUE(library_root_id, item_key, item_type)
+	)`, newTable, valueColumnDef)
+
+	if _, err := tx.Exec(createSQL); err != nil {
+		return fmt.Errorf("create %s: %w", newTable, err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s SELECT * FROM %s`, newTable, table)); err != nil {
+		return fmt.Errorf("copy data into %s: %w", newTable, err)
+	}
+	if _, err := tx.Exec(`DROP TABLE ` + table); err != nil {
+		return fmt.Errorf("drop old %s: %w", table, err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`ALTER TABLE %s RENAME TO %s`, newTable, table)); err != nil {
+		return fmt.Errorf("rename %s: %w", newTable, err)
+	}
+
+	return tx.Commit()
 }
 
 func Close() {
