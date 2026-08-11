@@ -56,10 +56,12 @@ func (c *streamarrCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.mediaTotal, prometheus.GaugeValue, float64(stats.TotalMovies), "movie")
 	ch <- prometheus.MustNewConstMetric(c.mediaTotal, prometheus.GaugeValue, float64(stats.TotalSeries), "series")
 	ch <- prometheus.MustNewConstMetric(c.mediaTotal, prometheus.GaugeValue, float64(stats.TotalEpisodes), "episode")
+	ch <- prometheus.MustNewConstMetric(c.mediaTotal, prometheus.GaugeValue, float64(stats.TotalTracks), "music")
 
 	ch <- prometheus.MustNewConstMetric(c.mediaNeedsAttention, prometheus.GaugeValue, float64(stats.MoviesNeedAttention), "movie")
 	ch <- prometheus.MustNewConstMetric(c.mediaNeedsAttention, prometheus.GaugeValue, float64(stats.SeriesNeedAttention), "series")
 	ch <- prometheus.MustNewConstMetric(c.mediaNeedsAttention, prometheus.GaugeValue, float64(stats.EpisodesNeedAttention), "episode")
+	ch <- prometheus.MustNewConstMetric(c.mediaNeedsAttention, prometheus.GaugeValue, float64(stats.TracksNeedAttention), "music")
 
 	ch <- prometheus.MustNewConstMetric(c.jobsTotal, prometheus.GaugeValue, float64(stats.TotalJobs), "total")
 	ch <- prometheus.MustNewConstMetric(c.jobsTotal, prometheus.GaugeValue, float64(stats.RunningJobs), "running")
