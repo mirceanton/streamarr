@@ -284,8 +284,10 @@ func splitReasons(s string) []string {
 	return strings.Split(s, "\n")
 }
 
-var validSubtitleFormats = map[string]bool{"srt": true, "ass": true, "vtt": true, "pgs": true, "dvd": true}
-var validAudioFormats = map[string]bool{"flac": true, "mp3": true, "aac": true, "opus": true}
+var (
+	validSubtitleFormats = map[string]bool{"srt": true, "ass": true, "vtt": true, "pgs": true, "dvd": true}
+	validAudioFormats    = map[string]bool{"flac": true, "mp3": true, "aac": true, "opus": true}
+)
 
 // resolveTextOverrideScope resolves the (item_type, item_key) pair used by the
 // language_overrides and subtitle_format_overrides tables for a given media file
