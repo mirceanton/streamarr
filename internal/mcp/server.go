@@ -36,6 +36,11 @@ func NewHTTPHandler() http.Handler {
 	}, runFFprobe)
 
 	mcpsdk.AddTool(server, &mcpsdk.Tool{
+		Name:        "get_job_status",
+		Description: "Check the status of a job triggered by trigger_track_job (pending, running, done, or failed), including the failure reason if it failed. Jobs run in the background, so poll this until the status is done or failed before re-checking attention reasons or ffprobe output.",
+	}, getJobStatus)
+
+	mcpsdk.AddTool(server, &mcpsdk.Tool{
 		Name:        "set_language_preference",
 		Description: "Set the preferred audio/subtitle languages for a movie or show, without modifying the file. Files whose tracks already match the new preference will immediately stop needing attention. For shows, defaults to just this episode; pass scope=series to apply to the whole series.",
 	}, setLanguagePreference)

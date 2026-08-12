@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/mirceanton/streamarr/internal/db"
 	"github.com/mirceanton/streamarr/internal/models"
@@ -208,6 +209,38 @@ func triggerTrackJob(_ context.Context, _ *mcpsdk.CallToolRequest, in TriggerTra
 	processor.Enqueue(jobID)
 
 	return nil, TriggerTrackJobOutput{JobID: jobID, Status: "pending"}, nil
+}
+
+// GetJobStatusInput is the input for the get_job_status tool.
+type GetJobStatusInput struct {
+	JobID int64 `json:"job_id" jsonschema:"ID of the job to check, as returned by trigger_track_job."`
+}
+
+// GetJobStatusOutput is the output of the get_job_status tool.
+type GetJobStatusOutput struct {
+	JobID       int64      `json:"job_id"`
+	MediaFileID int64      `json:"media_file_id"`
+	Status      string     `json:"status" jsonschema:"One of: pending, running, done, failed. Jobs run asynchronously — poll this until status is done or failed before re-checking attention reasons or ffprobe output."`
+	Error       string     `json:"error,omitempty" jsonschema:"Failure reason, present only when status is failed."`
+	CreatedAt   time.Time  `json:"created_at"`
+	StartedAt   *time.Time `json:"started_at,omitempty"`
+	FinishedAt  *time.Time `json:"finished_at,omitempty"`
+}
+
+func getJobStatus(_ context.Context, _ *mcpsdk.CallToolRequest, in GetJobStatusInput) (*mcpsdk.CallToolResult, GetJobStatusOutput, error) {
+	job, err := db.GetJob(in.JobID)
+	if err != nil {
+		return nil, GetJobStatusOutput{}, fmt.Errorf("job %d not found: %w", in.JobID, err)
+	}
+	return nil, GetJobStatusOutput{
+		JobID:       job.ID,
+		MediaFileID: job.MediaFileID,
+		Status:      job.Status,
+		Error:       job.Error,
+		CreatedAt:   job.CreatedAt,
+		StartedAt:   job.StartedAt,
+		FinishedAt:  job.FinishedAt,
+	}, nil
 }
 
 func hasAudioStream(tracks []models.AudioTrack, idx int) bool {
