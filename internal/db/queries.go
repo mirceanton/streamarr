@@ -729,6 +729,34 @@ func GetSeriesFilePaths(seriesTitle string, libraryRootID int64) ([]string, erro
 	return paths, rows.Err()
 }
 
+// GetAttentionMediaSummaries returns a lightweight, per-item projection of
+// every media file that currently needs attention, for the per-item
+// Prometheus metric (see handlers/metrics.go). Unlike GetMediaFilesByLibraryType
+// it skips the audio/subtitle/job joins that metric doesn't need.
+func GetAttentionMediaSummaries() ([]models.AttentionSummary, error) {
+	rows, err := DB.Query(`
+		SELECT mf.id, mf.title, mf.season, mf.episode,
+			CASE lr.type WHEN 'movies' THEN 'movie' WHEN 'shows' THEN 'episode' ELSE 'music' END
+		FROM media_files mf
+		JOIN library_roots lr ON mf.library_root_id = lr.id
+		WHERE mf.needs_attention = 1
+		ORDER BY lr.type, mf.title, mf.season, mf.episode`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []models.AttentionSummary
+	for rows.Next() {
+		var it models.AttentionSummary
+		if err := rows.Scan(&it.ID, &it.Title, &it.Season, &it.Episode, &it.Type); err != nil {
+			return nil, err
+		}
+		items = append(items, it)
+	}
+	return items, rows.Err()
+}
+
 // --- Dashboard ---
 
 func GetDashboardStats() (*models.DashboardStats, error) {

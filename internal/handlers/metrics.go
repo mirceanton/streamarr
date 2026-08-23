@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/mirceanton/streamarr/internal/db"
 	"github.com/prometheus/client_golang/prometheus"
@@ -11,6 +12,7 @@ import (
 type streamarrCollector struct {
 	mediaTotal          *prometheus.Desc
 	mediaNeedsAttention *prometheus.Desc
+	mediaItemAttention  *prometheus.Desc
 	jobsTotal           *prometheus.Desc
 	healthPercent       *prometheus.Desc
 }
@@ -26,6 +28,11 @@ func newStreamarrCollector() *streamarrCollector {
 			"streamarr_media_needs_attention_total",
 			"Number of media items that need attention",
 			[]string{"type"}, nil,
+		),
+		mediaItemAttention: prometheus.NewDesc(
+			"streamarr_media_item_needs_attention",
+			"Whether a specific media item needs attention (always 1). One series per affected item, labeled by its stable id, so each item can be alerted on and delegated independently instead of collapsing into a single alert.",
+			[]string{"id", "type", "title", "season", "episode"}, nil,
 		),
 		jobsTotal: prometheus.NewDesc(
 			"streamarr_jobs_total",
@@ -43,6 +50,7 @@ func newStreamarrCollector() *streamarrCollector {
 func (c *streamarrCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.mediaTotal
 	ch <- c.mediaNeedsAttention
+	ch <- c.mediaItemAttention
 	ch <- c.jobsTotal
 	ch <- c.healthPercent
 }
@@ -68,6 +76,22 @@ func (c *streamarrCollector) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(c.jobsTotal, prometheus.GaugeValue, float64(stats.PendingJobs), "pending")
 
 	ch <- prometheus.MustNewConstMetric(c.healthPercent, prometheus.GaugeValue, float64(stats.HealthPct))
+
+	items, err := db.GetAttentionMediaSummaries()
+	if err != nil {
+		return
+	}
+	for _, it := range items {
+		season, episode := "", ""
+		if it.Season != nil {
+			season = strconv.Itoa(*it.Season)
+		}
+		if it.Episode != nil {
+			episode = strconv.Itoa(*it.Episode)
+		}
+		ch <- prometheus.MustNewConstMetric(c.mediaItemAttention, prometheus.GaugeValue, 1,
+			strconv.FormatInt(it.ID, 10), it.Type, it.Title, season, episode)
+	}
 }
 
 func MetricsHandler() http.Handler {

@@ -146,6 +146,17 @@ type Album struct {
 	AudioFormatOverride string // "" means use global setting
 }
 
+// AttentionSummary is a lightweight per-item projection of a media file that
+// needs attention, used for the per-item Prometheus metric so each item gets
+// its own alert (see handlers/metrics.go).
+type AttentionSummary struct {
+	ID      int64
+	Title   string
+	Type    string // "movie", "episode", or "music"
+	Season  *int
+	Episode *int
+}
+
 // ScanStatus tracks whether a scan is in progress.
 type ScanStatus struct {
 	Running   bool
